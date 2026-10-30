@@ -2,6 +2,7 @@
 import datetime as dt
 import decimal
 import json
+import os
 
 import pyarrow as pa
 from pyiceberg.catalog import load_catalog
@@ -10,7 +11,11 @@ from pyiceberg.schema import Schema
 from pyiceberg.transforms import DayTransform, IdentityTransform
 from pyiceberg.types import DecimalType, LongType, NestedField, StringType, TimestamptzType
 
-catalog = load_catalog("lakekeeper", type="rest", uri="http://lakekeeper:8181/catalog", warehouse="spike")
+catalog = load_catalog(
+    "lakekeeper", type="rest", uri="http://lakekeeper:8181/catalog", warehouse="spike",
+    credential=os.environ["CATALOG_CREDENTIAL"],
+    **{"oauth2-server-uri": os.environ["CATALOG_OAUTH2_SERVER_URI"], "scope": os.environ["CATALOG_SCOPE"]},
+)
 
 schema = Schema(
     NestedField(1, "id", LongType(), required=True),

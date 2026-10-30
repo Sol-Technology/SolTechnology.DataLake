@@ -2,11 +2,16 @@
 import datetime as dt
 import decimal
 import json
+import os
 import sys
 
 from pyiceberg.catalog import load_catalog
 
-catalog = load_catalog("lakekeeper", type="rest", uri="http://lakekeeper:8181/catalog", warehouse="spike")
+catalog = load_catalog(
+    "lakekeeper", type="rest", uri="http://lakekeeper:8181/catalog", warehouse="spike",
+    credential=os.environ["CATALOG_CREDENTIAL"],
+    **{"oauth2-server-uri": os.environ["CATALOG_OAUTH2_SERVER_URI"], "scope": os.environ["CATALOG_SCOPE"]},
+)
 
 
 def to_json(v):

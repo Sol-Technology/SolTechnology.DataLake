@@ -10,7 +10,7 @@ A throwaway prototype that answers the hard questions before the real code. Live
 - [x] Test tables: partitioned, after `MERGE` (with delete files), after a schema change. Delete files from Trino `DELETE` / `UPDATE`
 - [x] Read `metadata.json` → snapshot → manifest list → manifests (Avro, through AvroConvert)
 - [x] Read data files with Parquet.Net: column projection, skipping files by manifest statistics
-- [ ] REST catalog: `loadTable`, OAuth2 client credentials, credentials vended by the catalog. Done: `loadTable` and vended S3 credentials (Lakekeeper). Left: OAuth2
+- [x] REST catalog: `loadTable`, OAuth2 client credentials, credentials vended by the catalog (Lakekeeper with Keycloak)
 - [ ] Measure the column layer: one mapper over Parquet.Net columns and Arrow vs everything through Arrow
 - [x] Writing Parquet with `field_id`: Parquet.Net change, ParquetSharp or own writer. Answer: Parquet.Net 6.1 writes it (`DataField.FieldId`), checked with pyarrow
 - [ ] Which managed catalogs accept writes from an outside client (Unity, Snowflake, Glue, S3 Tables, Polaris)

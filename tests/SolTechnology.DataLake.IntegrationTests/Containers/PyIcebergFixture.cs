@@ -27,7 +27,13 @@ public sealed class PyIcebergFixture(TestContainersContext context)
     public async Task<string> RunAsync(string outputFile, string[] command, CancellationToken ct = default)
     {
         var image = _image ?? throw new InvalidOperationException("Call InitializeAsync first.");
-        await using var container = new ContainerBuilder(image).WithNetwork(context.Network).WithCommand(command).Build();
+        await using var container = new ContainerBuilder(image)
+            .WithNetwork(context.Network)
+            .WithEnvironment("CATALOG_CREDENTIAL", $"{KeycloakFixture.ClientId}:{KeycloakFixture.ClientSecret}")
+            .WithEnvironment("CATALOG_OAUTH2_SERVER_URI", KeycloakFixture.InternalTokenEndpoint)
+            .WithEnvironment("CATALOG_SCOPE", KeycloakFixture.Scope)
+            .WithCommand(command)
+            .Build();
         await OneShot.RunAsync(container, ct).ConfigureAwait(false);
         return Encoding.UTF8.GetString(await container.ReadFileAsync("/out/" + outputFile, ct).ConfigureAwait(false));
     }

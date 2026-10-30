@@ -1,0 +1,16 @@
+{
+  "realm": "datalake",
+  "enabled": true,
+  "clients": [
+    {
+      "clientId": "datalake-tests",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "datalake-tests-secret",
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false
+    }
+  ]
+}

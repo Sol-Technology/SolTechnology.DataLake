@@ -4,7 +4,7 @@ using static SolTechnology.DataLake.IntegrationTests.IntegrationTestsFixture;
 
 namespace SolTechnology.DataLake.IntegrationTests;
 
-// Iceberg REST catalog (Lakekeeper) with S3 credentials vended per table; files in Silo.
+// Iceberg REST catalog (Lakekeeper) behind OAuth2 (Keycloak), S3 credentials vended per table; files in Silo.
 public class RestCatalogTests
 {
     private HttpClient _http = null!;
@@ -16,9 +16,19 @@ public class RestCatalogTests
     public void DisposeClient() => _http.Dispose();
 
     [Test]
+    public async Task Request_without_token_is_rejected()
+    {
+        var anonymous = new RestCatalog(_http, Lakekeeper.CatalogUri, LakekeeperFixture.Warehouse);
+
+        var load = () => anonymous.LoadTableAsync("shop", "orders");
+
+        (await load.Should().ThrowAsync<RestCatalogException>()).Which.StatusCode.Should().Be(System.Net.HttpStatusCode.Unauthorized);
+    }
+
+    [Test]
     public async Task Loads_table_from_REST_catalog_and_reads_it_with_vended_credentials()
     {
-        var loaded = await new RestCatalog(_http, Lakekeeper.CatalogUri, LakekeeperFixture.Warehouse).LoadTableAsync("shop", "orders");
+        var loaded = await Catalog().LoadTableAsync("shop", "orders");
         var properties = loaded.PropertiesFor(loaded.Metadata.Location);
 
         properties.Should().ContainKey("s3.session-token", "Lakekeeper vends STS credentials");
@@ -32,7 +42,7 @@ public class RestCatalogTests
     [Test]
     public async Task Applies_position_deletes_written_by_Trino()
     {
-        var loaded = await new RestCatalog(_http, Lakekeeper.CatalogUri, LakekeeperFixture.Warehouse).LoadTableAsync("shop", "orders_mor");
+        var loaded = await Catalog().LoadTableAsync("shop", "orders_mor");
         var metrics = new ScanMetrics();
 
         var rows = await ScanAsync(loaded, metrics: metrics);
@@ -46,7 +56,7 @@ public class RestCatalogTests
     [Test]
     public async Task Filter_skips_files_on_S3()
     {
-        var loaded = await new RestCatalog(_http, Lakekeeper.CatalogUri, LakekeeperFixture.Warehouse).LoadTableAsync("shop", "orders");
+        var loaded = await Catalog().LoadTableAsync("shop", "orders");
         var metrics = new ScanMetrics();
         var oct2 = new DateTimeOffset(2026, 10, 2, 0, 0, 0, TimeSpan.Zero);
 
@@ -56,6 +66,9 @@ public class RestCatalogTests
         metrics.FilesRead.Should().Be(1);
         rows.Should().HaveCount(3).And.OnlyContain(r => (string)r["country"]! == "PL" && ((DateTimeOffset)r["created_at"]!).Date == oct2.Date);
     }
+
+    private RestCatalog Catalog() =>
+        new(_http, Lakekeeper.CatalogUri, LakekeeperFixture.Warehouse, Keycloak.Credentials(_http));
 
     // Lakekeeper hands out the S3 endpoint containers use (http://silo:9000); from the host it is Silo's mapped port.
     private static async Task<List<Dictionary<string, object?>>> ScanAsync(LoadedTable loaded, IReadOnlyList<Predicate>? filter = null, ScanMetrics? metrics = null)

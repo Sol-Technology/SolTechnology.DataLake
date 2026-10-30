@@ -7,10 +7,11 @@ using Testcontainers.PostgreSql;
 namespace SolTechnology.DataLake.IntegrationTests.Containers;
 
 /// <summary>
-/// Lakekeeper, an Iceberg REST catalog, without auth (allowall), on Postgres, with one warehouse in Silo.
+/// Lakekeeper, an Iceberg REST catalog, on Postgres, with one warehouse in Silo. Every request needs a bearer token
+/// from Keycloak (OpenID); authorization is allowall, so any valid token may do anything.
 /// Containers reach it as <c>http://lakekeeper:8181/catalog</c>, tests on the host as <see cref="CatalogUri"/>.
 /// </summary>
-public sealed class LakekeeperFixture(TestContainersContext context) : IAsyncDisposable
+public sealed class LakekeeperFixture(TestContainersContext context, KeycloakFixture keycloak) : IAsyncDisposable
 {
     private const string Image = "quay.io/lakekeeper/catalog:v0.14.2";
     public const string Warehouse = "spike";
@@ -40,6 +41,7 @@ public sealed class LakekeeperFixture(TestContainersContext context) : IAsyncDis
             ["LAKEKEEPER__PG_DATABASE_URL_READ"] = "postgresql://postgres:postgres@lakekeeper-db:5432/postgres",
             ["LAKEKEEPER__PG_DATABASE_URL_WRITE"] = "postgresql://postgres:postgres@lakekeeper-db:5432/postgres",
             ["LAKEKEEPER__AUTHZ_BACKEND"] = "allowall",
+            ["LAKEKEEPER__OPENID_PROVIDER_URI"] = KeycloakFixture.InternalIssuer,
         };
 
         await using (var migrate = new ContainerBuilder(Image).WithNetwork(context.Network).WithEnvironment(environment).WithCommand("migrate").Build())
@@ -63,6 +65,8 @@ public sealed class LakekeeperFixture(TestContainersContext context) : IAsyncDis
     private async Task CreateWarehouseAsync(CancellationToken ct)
     {
         using var http = new HttpClient { BaseAddress = new Uri(CatalogUri, "/") };
+        var token = await keycloak.Credentials(http).GetTokenAsync(ct).ConfigureAwait(false);
+        http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
         var configUri = $"catalog/v1/config?warehouse={Warehouse}";
         using (var existing = await http.GetAsync(configUri, ct).ConfigureAwait(false))
             if (existing.IsSuccessStatusCode) return;

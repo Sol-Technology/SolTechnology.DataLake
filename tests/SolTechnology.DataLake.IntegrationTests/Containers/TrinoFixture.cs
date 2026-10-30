@@ -17,7 +17,10 @@ public sealed class TrinoFixture(TestContainersContext context) : IAsyncDisposab
         iceberg.catalog.type=rest
         iceberg.rest-catalog.uri=http://lakekeeper:8181/catalog
         iceberg.rest-catalog.warehouse={LakekeeperFixture.Warehouse}
-        iceberg.rest-catalog.security=NONE
+        iceberg.rest-catalog.security=OAUTH2
+        iceberg.rest-catalog.oauth2.credential={KeycloakFixture.ClientId}:{KeycloakFixture.ClientSecret}
+        iceberg.rest-catalog.oauth2.server-uri={KeycloakFixture.InternalTokenEndpoint}
+        iceberg.rest-catalog.oauth2.scope={KeycloakFixture.Scope}
         iceberg.rest-catalog.vended-credentials-enabled=true
         fs.native-s3.enabled=true
         s3.region={SiloFixture.Region}
