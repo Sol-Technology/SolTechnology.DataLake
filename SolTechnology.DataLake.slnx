@@ -6,8 +6,10 @@
   </Folder>
   <Folder Name="/spikes/">
     <Project Path="spikes/IcebergSpike/IcebergSpike.csproj" />
+    <Project Path="spikes/IcebergSpike.Tests/IcebergSpike.Tests.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/SolTechnology.DataLake.IntegrationTests/SolTechnology.DataLake.IntegrationTests.csproj" />
     <Project Path="tests/SolTechnology.DataLake.UnitTests/SolTechnology.DataLake.UnitTests.csproj" />
   </Folder>
   <Project Path="src/SolTechnology.DataLake/SolTechnology.DataLake.csproj" />

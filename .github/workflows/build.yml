@@ -20,36 +20,19 @@ jobs:
         dotnet-version: 10.0.x
     - name: Build
       run: dotnet build SolTechnology.DataLake.slnx -c Release
-    - name: Test
-      run: dotnet test SolTechnology.DataLake.slnx -c Release --no-build
+    - name: Unit tests
+      run: |
+        dotnet test tests/SolTechnology.DataLake.UnitTests -c Release --no-build
+        dotnet test spikes/IcebergSpike.Tests -c Release --no-build
 
-  rest-catalog:
-    name: Iceberg REST catalog (Docker)
+  integration:
+    # Linux containers through Testcontainers: Silo (S3), Lakekeeper (REST catalog), Trino, PyIceberg.
+    name: Integration tests (Docker)
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v5
     - uses: actions/setup-dotnet@v5
       with:
         dotnet-version: 10.0.x
-    - name: Build
-      run: dotnet build spikes/IcebergSpike -c Release
-    - name: Start Lakekeeper, Silo and seed a table with PyIceberg
-      working-directory: spikes/rest-catalog
-      run: |
-        docker compose up -d
-        docker compose wait seed || true   # errors if seed already exited; the exit code check below decides
-        test "$(docker inspect -f '{{.State.ExitCode}}' "$(docker compose ps -aq seed)")" = 0
-    - name: Position deletes with Trino
-      run: spikes/rest-catalog/deletes.sh
-    - name: Test against the catalog
-      run: dotnet test spikes/IcebergSpike -c Release --no-build --filter TestCategory=Docker
-      env:
-        REQUIRE_DOCKER: "1"
-    - name: Container logs
-      if: failure()
-      working-directory: spikes/rest-catalog
-      run: docker compose --profile trino logs --no-color
-    - name: Stop containers
-      if: always()
-      working-directory: spikes/rest-catalog
-      run: docker compose --profile trino down -v
+    - name: Integration tests
+      run: dotnet test tests/SolTechnology.DataLake.IntegrationTests -c Release --logger "console;verbosity=normal"
