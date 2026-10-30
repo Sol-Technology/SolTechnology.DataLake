@@ -45,6 +45,8 @@ await table.AppendAsync(newOrders);
 
 Out of scope: SQL engine, joins, DataFrame. For that take a look at DuckDB.NET.
 
+Step by step: [docs/ROADMAP.md](./docs/ROADMAP.md).
+
 ## Packages
 
 | Package | What is inside |
