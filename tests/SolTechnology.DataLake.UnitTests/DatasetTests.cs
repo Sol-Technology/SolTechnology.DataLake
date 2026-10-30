@@ -1,6 +1,7 @@
 using System.Runtime.Serialization;
 using System.Text.Json;
 using Parquet.Schema;
+using SolTechnology.Time;
 
 namespace SolTechnology.DataLake.UnitTests;
 
@@ -256,7 +257,69 @@ public class DatasetTests
         utc.At.Should().Be(new DateTimeOffset(at));
         utcAsDateTime.At.Kind.Should().Be(DateTimeKind.Utc);
         local.At.Should().Be(new DateTime(2026, 10, 29, 12, 30, 0)).And.Subject!.Value.Kind.Should().Be(DateTimeKind.Unspecified);
-        (await localAsOffset.Should().ThrowAsync<NotSupportedException>()).WithMessage("*without a time zone*DateTime*");
+        (await localAsOffset.Should().ThrowAsync<NotSupportedException>()).WithMessage("*without a time zone*UnzonedDateTime*");
+    }
+
+    public sealed class ZonedEvent
+    {
+        public DateTimeZone At { get; set; }
+    }
+
+    public sealed class UnzonedEvent
+    {
+        public UnzonedDateTime At { get; set; }
+    }
+
+    [Test]
+    public async Task Timestamps_through_SolTechnology_DateTimeZone()
+    {
+        var at = new DateTime(2026, 10, 29, 12, 30, 0, DateTimeKind.Utc);
+        await _lake.WriteAsync("utc/x.parquet", [new DateTimeDataField("At", Parquet.Schema.DateTimeFormat.Timestamp, isAdjustedToUTC: true)], [new[] { at }]);
+        await _lake.WriteAsync("local/x.parquet", [new DateTimeDataField("At", Parquet.Schema.DateTimeFormat.Timestamp, isAdjustedToUTC: false)], [new[] { at }]);
+
+        var zoned = (await DataLake.Open<ZonedEvent>(_lake.PathOf("utc")).ReadAsync().ToListAsync()).Single();
+        var unzoned = (await DataLake.Open<UnzonedEvent>(_lake.PathOf("local")).ReadAsync().ToListAsync()).Single();
+        var instantAsUnzoned = () => DataLake.Open<UnzonedEvent>(_lake.PathOf("utc")).ReadAsync().ToListAsync().AsTask();
+        var wallClockAsZoned = () => DataLake.Open<ZonedEvent>(_lake.PathOf("local")).ReadAsync().ToListAsync().AsTask();
+
+        zoned.At.ToDateTimeOffset().Should().Be(new DateTimeOffset(at));
+        zoned.At.Zone.Should().Be(TimeZoneInfo.Utc);
+        unzoned.At.Should().Be(new UnzonedDateTime(2026, 10, 29, 12, 30));
+        (await instantAsUnzoned.Should().ThrowAsync<NotSupportedException>()).WithMessage("*UTC instants*DateTimeZone*");
+        (await wallClockAsZoned.Should().ThrowAsync<NotSupportedException>()).WithMessage("*without a time zone*UnzonedDateTime*InZone*");
+    }
+
+    [Test]
+    public async Task Filter_on_DateTimeZone_skips_row_groups()
+    {
+        var day1 = new DateTime(2026, 10, 1, 0, 0, 0, DateTimeKind.Utc);
+        var field = new DateTimeDataField("At", Parquet.Schema.DateTimeFormat.Timestamp, isAdjustedToUTC: true);
+        await _lake.WriteAsync("x.parquet", [field],
+            [Enumerable.Range(0, 24).Select(h => day1.AddHours(h)).ToArray()],
+            [Enumerable.Range(0, 24).Select(h => day1.AddDays(1).AddHours(h)).ToArray()]);
+        var metrics = new ScanMetrics();
+        var from = DateTimeZone.FromUtc(day1.AddDays(1), TimeZoneInfo.Utc);
+
+        var rows = await DataLake.Open<ZonedEvent>(_lake.Root).Where(e => e.At >= from).ReadAsync(metrics).ToListAsync();
+
+        metrics.RowGroupsSkippedByStatistics.Should().Be(1);
+        rows.Should().HaveCount(24).And.OnlyContain(e => e.At >= from);
+    }
+
+    public sealed class HourlyRow
+    {
+        public long Id { get; set; }
+        public UnzonedDateTime Hour { get; set; }
+    }
+
+    [Test]
+    public async Task Partition_value_as_UnzonedDateTime()
+    {
+        await _lake.WriteAsync("hour=2026-10-29T12%3A00%3A00/part-0.parquet", [new DataField<long>("Id")], [new long[] { 1 }]);
+
+        var row = (await DataLake.Open<HourlyRow>(_lake.Root).ReadAsync().ToListAsync()).Single();
+
+        row.Hour.Should().Be(new UnzonedDateTime(2026, 10, 29, 12));
     }
 
     [Test]

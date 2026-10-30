@@ -44,6 +44,8 @@ Parquet.Net 6.1:
 - on read `DataField.FieldId` is -1; the value is in `SchemaElement.FieldId`
 - `DateTime` comes back with `Kind.Unspecified`, also for UTC timestamps
 - decimals are written as `decimal(38, 18)` unless the precision is set; Iceberg tables need the table's precision
+- **min/max statistics of `MICROS` timestamps are written in milliseconds** (the column says microseconds; pyarrow reads the max of a 2026 column as 1970-01-21). Any engine that prunes by statistics can drop matching rows from such files. DataLake does not trust timestamp statistics in micros or nanos from files written by Parquet.Net, and has to write millis or its own statistics in 0.2. To report upstream
+- row group statistics come back as physical values: a timestamp as `long` in the column's unit, a date as days since 1970-01-01, a decimal as `BigDecimal`
 - timestamps without a zone (`isAdjustedToUTC=false`) come back as `Kind.Local`, which they are not; DataLake returns them as `Unspecified`
 - a required column read into `T?[]` sometimes came back with nulls (about 1 scan in 50 in the integration tests, never in a standalone loop over the same file). Reading required columns into `T[]` made it go away (0 in 600 scans). DataLake does that; worth reporting upstream once it reproduces alone
 

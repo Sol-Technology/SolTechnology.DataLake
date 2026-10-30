@@ -37,6 +37,7 @@
 	<ItemGroup>
 		<PackageReference Include="AvroConvert" />
 		<PackageReference Include="Parquet.Net" />
+		<PackageReference Include="SolTechnology.DateTimeZone" />
 	</ItemGroup>
 
 	<ItemGroup>

@@ -27,7 +27,7 @@ A folder of Parquet or Avro files read as one table.
 - [ ] Parquet read: projection, row group statistics, logical types, nested types. Done: projection, statistics, flat columns. Left: nested types
 - [ ] Avro container read through AvroConvert
 - [x] Column layer and compiled mapper from columns to C# classes
-- [ ] Type mapping: decimals, `DateOnly`, `TimeOnly`, timestamps through SolTechnology.DateTimeZone, `Guid`, nullability
+- [ ] Type mapping: decimals, `DateOnly`, `TimeOnly`, timestamps through SolTechnology.DateTimeZone, `Guid`, nullability. Done: decimals, `DateOnly`, UTC timestamps to `DateTimeZone` / `DateTimeOffset`, timestamps without a zone to `UnzonedDateTime`, nullability, widening, enums. Left: `TimeOnly`, `Guid`
 - [x] Discovery: hive partitions (`date=…/country=…`), partition types from the class
 - [x] Schema merge across files, clear error on a type conflict
 - [x] Filters: LINQ to predicate, pruning by partition, by file and row group statistics, then by row

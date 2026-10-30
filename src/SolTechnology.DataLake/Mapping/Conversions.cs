@@ -1,13 +1,16 @@
 using System.Collections.Concurrent;
 using System.Globalization;
 using System.Linq.Expressions;
+using SolTechnology.Time;
 
 namespace SolTechnology.DataLake.Mapping;
 
 /// <summary>
 /// Conversions from a column's CLR type to a property type. Only lossless ones: same type, numeric widening,
-/// string or integer to enum, UTC timestamp to <see cref="DateTimeOffset"/>, <see cref="DateOnly"/> to <see cref="DateTime"/>,
-/// <see cref="TimeSpan"/> to <see cref="TimeOnly"/>. Anything else is an error, never a guess.
+/// string or integer to enum, <see cref="DateOnly"/> to <see cref="DateTime"/>, <see cref="TimeSpan"/> to <see cref="TimeOnly"/>.
+/// Timestamps follow SolTechnology.DateTimeZone: a UTC instant reads into <see cref="DateTimeZone"/> (in UTC),
+/// <see cref="DateTimeOffset"/> or <see cref="DateTime"/> (Kind.Utc); a timestamp without a zone into
+/// <see cref="UnzonedDateTime"/> or <see cref="DateTime"/> (Kind.Unspecified). Anything else is an error, never a guess.
 /// </summary>
 internal static class Conversions
 {
@@ -72,12 +75,14 @@ internal static class Conversions
                 _ when target == typeof(DateOnly) => DateOnly.Parse(text, c),
                 _ when target == typeof(DateTime) => DateTime.Parse(text, c, DateTimeStyles.RoundtripKind),
                 _ when target == typeof(DateTimeOffset) => DateTimeOffset.Parse(text, c, DateTimeStyles.AssumeUniversal),
+                _ when target == typeof(DateTimeZone) => DateTimeZone.Parse(text),
+                _ when target == typeof(UnzonedDateTime) => UnzonedDateTime.Parse(text),
                 _ when target == typeof(Guid) => Guid.Parse(text),
                 _ when target == typeof(bool) => bool.Parse(text),
                 _ => System.Convert.ChangeType(text, target, c),
             };
         }
-        catch (Exception e) when (e is FormatException or OverflowException or ArgumentException or InvalidCastException)
+        catch (Exception e) when (e is FormatException or OverflowException or ArgumentException or InvalidCastException or DateTimeZoneException)
         {
             throw new InvalidDataException($"Partition value '{text}' of '{column}' is not a valid {target.Name}.", e);
         }
@@ -130,6 +135,12 @@ internal static class Conversions
         if (source == typeof(DateTime) && target == typeof(DateTimeOffset) && utc)
             return Expression.New(typeof(DateTimeOffset).GetConstructor([typeof(DateTime)])!,
                 Expression.Call(typeof(DateTime), nameof(DateTime.SpecifyKind), null, value, Expression.Constant(DateTimeKind.Utc)));
+        if (source == typeof(DateTime) && target == typeof(DateTimeZone) && utc)
+            return Expression.Call(typeof(DateTimeZone), nameof(DateTimeZone.FromUtc), null,
+                Expression.Call(typeof(DateTime), nameof(DateTime.SpecifyKind), null, value, Expression.Constant(DateTimeKind.Utc)),
+                Expression.Constant(TimeZoneInfo.Utc));
+        if (source == typeof(DateTime) && target == typeof(UnzonedDateTime) && !utc)
+            return Expression.Call(typeof(UnzonedDateTime), nameof(UnzonedDateTime.FromDateTime), null, value);
         if (source == typeof(DateOnly) && target == typeof(DateTime))
             return Expression.Call(value, nameof(DateOnly.ToDateTime), null, Expression.Constant(TimeOnly.MinValue));
         if (source == typeof(TimeSpan) && target == typeof(TimeOnly))
@@ -139,8 +150,13 @@ internal static class Conversions
 
     private static Expression Lift(Expression value, Type to) => value.Type == to ? value : Expression.Convert(value, to);
 
-    public static NotSupportedException Mismatch(string column, Type from, Type to, bool utc) =>
-        new(from == typeof(DateTime) && (Nullable.GetUnderlyingType(to) ?? to) == typeof(DateTimeOffset) && !utc
-            ? $"Column '{column}' is a timestamp without a time zone; read it into DateTime, not DateTimeOffset."
-            : $"Column '{column}' of type {from.Name} can't be read into {to.Name} without losing data.");
+    public static NotSupportedException Mismatch(string column, Type from, Type to, bool utc)
+    {
+        var target = Nullable.GetUnderlyingType(to) ?? to;
+        if (from == typeof(DateTime) && !utc && (target == typeof(DateTimeOffset) || target == typeof(DateTimeZone)))
+            return new($"Column '{column}' is a timestamp without a time zone; read it into UnzonedDateTime (then .InZone(zone) if you know the zone) or DateTime, not {target.Name}.");
+        if (from == typeof(DateTime) && utc && target == typeof(UnzonedDateTime))
+            return new($"Column '{column}' holds UTC instants; read it into DateTimeZone, DateTimeOffset or DateTime, not UnzonedDateTime.");
+        return new($"Column '{column}' of type {from.Name} can't be read into {to.Name} without losing data.");
+    }
 }

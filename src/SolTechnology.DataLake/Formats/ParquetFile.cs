@@ -26,7 +26,7 @@ internal static class ParquetFile<T> where T : class
     public static async IAsyncEnumerable<T> ReadAsync(Stream stream, string location, FileScan<T> scan, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
     {
         await using var reader = await ParquetReader.CreateAsync(stream, Options, leaveStreamOpen: true, ct).ConfigureAwait(false);
-        var bindings = Bind(reader.Schema, location, scan);
+        var bindings = Bind(reader.Schema, location, scan, ParquetStatistics.TrustsTimestamps(reader.Metadata?.CreatedBy));
         var byProperty = bindings.ToDictionary(b => b.Property.Property.Name);
         var partitionsByProperty = scan.Partitions.ToDictionary(p => p.Key.Property.Name, p => p.Value);
 
@@ -58,7 +58,7 @@ internal static class ParquetFile<T> where T : class
         }
     }
 
-    private static List<ColumnBinding<T>> Bind(ParquetSchema schema, string location, FileScan<T> scan)
+    private static List<ColumnBinding<T>> Bind(ParquetSchema schema, string location, FileScan<T> scan, bool trustTimestamps)
     {
         var bindings = new List<ColumnBinding<T>>();
         var bound = new HashSet<PropertyMap<T>>();
@@ -68,7 +68,7 @@ internal static class ParquetFile<T> where T : class
             if (property is null) continue;
             if (field is not DataField { IsArray: false } data)
                 throw new NotSupportedException($"{location}: column '{field.Name}' is nested ({field.SchemaType}); nested columns are not supported yet.");
-            bindings.Add(ColumnBinding<T>.Create(data, property, IsUtc(data), location));
+            bindings.Add(ColumnBinding<T>.Create(data, property, IsUtc(data), trustTimestamps, location));
             bound.Add(property);
         }
 
@@ -115,18 +115,17 @@ internal abstract class ColumnBinding<T> where T : class
     public required DataField Field { get; init; }
     public required PropertyMap<T> Property { get; init; }
     public required bool Utc { get; init; }
+    public required bool TrustTimestamps { get; init; }
 
     public abstract Task AssignAsync(ParquetRowGroupReader group, T[] rows, CancellationToken ct);
 
     /// <summary>A statistics value as the property type, for comparing with filter constants.</summary>
-    public object? ToPropertyType(object? value) => value switch
-    {
-        null => null,
-        ReadOnlyMemory<char> chars => chars.ToString(),
-        _ => Conversions.ConvertValue(value, Property.Type, Utc, Field.Name),
-    };
+    public object? ToPropertyType(object? value) =>
+        ParquetStatistics.Decode(value, Field, TrustTimestamps) is { } decoded
+            ? Conversions.ConvertValue(decoded, Property.Type, Utc, Field.Name)
+            : null;
 
-    public static ColumnBinding<T> Create(DataField field, PropertyMap<T> property, bool utc, string location)
+    public static ColumnBinding<T> Create(DataField field, PropertyMap<T> property, bool utc, bool trustTimestamps, string location)
     {
         var element = field.ClrType == typeof(ReadOnlyMemory<char>) ? typeof(string) : field.ClrType;
         var input = element == typeof(string) || element == typeof(byte[]) ? element
@@ -137,10 +136,10 @@ internal abstract class ColumnBinding<T> where T : class
                                             $"Property: {typeof(T).Name}.{property.Property.Name}.");
         var type = typeof(ColumnBinding<,,>).MakeGenericType(typeof(T), input, property.Type);
         var binding = (ColumnBinding<T>)Activator.CreateInstance(type, Conversions.Get(input, property.Type, utc, field.Name), property.Setter)!;
-        return binding.With(field, property, utc);
+        return binding.With(field, property, utc, trustTimestamps);
     }
 
-    protected abstract ColumnBinding<T> With(DataField field, PropertyMap<T> property, bool utc);
+    protected abstract ColumnBinding<T> With(DataField field, PropertyMap<T> property, bool utc, bool trustTimestamps);
 }
 
 internal sealed class ColumnBinding<T, TIn, TOut>(Func<TIn, TOut> convert, Action<T, TOut> set) : ColumnBinding<T> where T : class
@@ -153,8 +152,8 @@ internal sealed class ColumnBinding<T, TIn, TOut>(Func<TIn, TOut> convert, Actio
         for (var i = 0; i < rows.Length; i++) set(rows[i], convert(values[i]));
     }
 
-    protected override ColumnBinding<T> With(DataField field, PropertyMap<T> property, bool utc) =>
-        new ColumnBinding<T, TIn, TOut>(convert, set) { Field = field, Property = property, Utc = utc };
+    protected override ColumnBinding<T> With(DataField field, PropertyMap<T> property, bool utc, bool trustTimestamps) =>
+        new ColumnBinding<T, TIn, TOut>(convert, set) { Field = field, Property = property, Utc = utc, TrustTimestamps = trustTimestamps };
 
     private static Func<ParquetRowGroupReader, DataField, int, CancellationToken, Task<TIn[]>> CreateReader()
     {
