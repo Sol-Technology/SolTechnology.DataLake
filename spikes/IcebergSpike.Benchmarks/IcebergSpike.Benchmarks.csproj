@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<!-- D2: Parquet to C# classes directly vs through Arrow. dotnet run -c Release -->
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+		<TargetFramework>net10.0</TargetFramework>
+		<IsPackable>false</IsPackable>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Apache.Arrow" />
+		<PackageReference Include="BenchmarkDotNet" />
+		<PackageReference Include="Parquet.Net" />
+	</ItemGroup>
+
+</Project>

@@ -14,6 +14,10 @@ Throwaway code that answers questions before the real implementation. Not shippe
 dotnet test spikes/IcebergSpike.Tests
 ```
 
+## IcebergSpike.Benchmarks
+
+D2: Parquet to C# classes directly vs through Arrow. Results in its README.
+
 ## Against a real catalog
 
 `tests/SolTechnology.DataLake.IntegrationTests` runs the spike reader against Lakekeeper (Iceberg REST catalog), Silo (S3) and Trino in Docker. See its README.

@@ -11,7 +11,7 @@ A throwaway prototype that answers the hard questions before the real code. Live
 - [x] Read `metadata.json` → snapshot → manifest list → manifests (Avro, through AvroConvert)
 - [x] Read data files with Parquet.Net: column projection, skipping files by manifest statistics
 - [x] REST catalog: `loadTable`, OAuth2 client credentials, credentials vended by the catalog (Lakekeeper with Keycloak)
-- [ ] Measure the column layer: one mapper over Parquet.Net columns and Arrow vs everything through Arrow
+- [x] Measure the column layer: one mapper over Parquet.Net columns and Arrow vs everything through Arrow. Through Arrow is 1.8× slower and allocates 1.48× more (`spikes/IcebergSpike.Benchmarks`)
 - [x] Writing Parquet with `field_id`: Parquet.Net change, ParquetSharp or own writer. Answer: Parquet.Net 6.1 writes it (`DataField.FieldId`), checked with pyarrow
 - [ ] Which managed catalogs accept writes from an outside client (Unity, Snowflake, Glue, S3 Tables, Polaris)
 - [x] Bucket transform (Murmur3) against the test values from the Iceberg spec
