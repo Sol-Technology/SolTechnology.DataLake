@@ -8,13 +8,13 @@ A throwaway prototype that answers the hard questions before the real code. Live
 
 - [ ] Local test environment: MinIO + Lakekeeper (REST catalog) in Docker, PyIceberg or Spark to create test tables
 - [ ] Test tables: partitioned, after `MERGE` (with delete files), after a schema change
-- [ ] Read `metadata.json` → snapshot → manifest list → manifests (Avro, through AvroConvert)
-- [ ] Read data files with Parquet.Net: column projection, skipping files by manifest statistics
+- [x] Read `metadata.json` → snapshot → manifest list → manifests (Avro, through AvroConvert)
+- [x] Read data files with Parquet.Net: column projection, skipping files by manifest statistics
 - [ ] REST catalog: `loadTable`, OAuth2 client credentials, credentials vended by the catalog
 - [ ] Measure the column layer: one mapper over Parquet.Net columns and Arrow vs everything through Arrow
-- [ ] Writing Parquet with `field_id`: Parquet.Net change, ParquetSharp or own writer
+- [x] Writing Parquet with `field_id`: Parquet.Net change, ParquetSharp or own writer. Answer: Parquet.Net 6.1 writes it (`DataField.FieldId`), checked with pyarrow
 - [ ] Which managed catalogs accept writes from an outside client (Unity, Snowflake, Glue, S3 Tables, Polaris)
-- [ ] Bucket transform (Murmur3) against the test values from the Iceberg spec
+- [x] Bucket transform (Murmur3) against the test values from the Iceberg spec
 - [ ] Spike report
 
 ## 0.1 Dataset

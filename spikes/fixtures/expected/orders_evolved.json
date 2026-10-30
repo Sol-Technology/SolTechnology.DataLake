@@ -1,0 +1,169 @@
+{
+  "table": "orders_evolved",
+  "pyiceberg": "0.10.0",
+  "metadata": "shop/orders_evolved/metadata/00003-c7fdd52a-403f-409b-92a6-ed5cb4a6354d.metadata.json",
+  "current_snapshot_id": 8602352777896985850,
+  "data_files": 2,
+  "snapshots": [
+    {
+      "snapshot_id": 7894933661365428747,
+      "rows": [
+        {
+          "id": 1,
+          "customer": "customer-1",
+          "country": "DE",
+          "amount": "1.09",
+          "created_at": "2026-10-01T08:00:00Z",
+          "order_date": "2026-10-01",
+          "is_paid": false,
+          "score": 0.125
+        },
+        {
+          "id": 2,
+          "customer": "customer-2",
+          "country": "US",
+          "amount": "1.19",
+          "created_at": "2026-10-01T09:00:00Z",
+          "order_date": "2026-10-01",
+          "is_paid": true,
+          "score": 0.25
+        },
+        {
+          "id": 3,
+          "customer": "customer-3",
+          "country": "PL",
+          "amount": "1.29",
+          "created_at": "2026-10-01T10:00:00Z",
+          "order_date": "2026-10-01",
+          "is_paid": false,
+          "score": null
+        },
+        {
+          "id": 4,
+          "customer": "customer-4",
+          "country": "DE",
+          "amount": "1.39",
+          "created_at": "2026-10-01T11:00:00Z",
+          "order_date": null,
+          "is_paid": true,
+          "score": 0.5
+        },
+        {
+          "id": 5,
+          "customer": "customer-5",
+          "country": "US",
+          "amount": null,
+          "created_at": "2026-10-01T12:00:00Z",
+          "order_date": "2026-10-01",
+          "is_paid": false,
+          "score": 0.625
+        }
+      ]
+    },
+    {
+      "snapshot_id": 8602352777896985850,
+      "rows": [
+        {
+          "id": 1,
+          "customer": "customer-1",
+          "country": "DE",
+          "total": "1.09",
+          "created_at": "2026-10-01T08:00:00Z",
+          "order_date": "2026-10-01",
+          "is_paid": false,
+          "note": null
+        },
+        {
+          "id": 2,
+          "customer": "customer-2",
+          "country": "US",
+          "total": "1.19",
+          "created_at": "2026-10-01T09:00:00Z",
+          "order_date": "2026-10-01",
+          "is_paid": true,
+          "note": null
+        },
+        {
+          "id": 3,
+          "customer": "customer-3",
+          "country": "PL",
+          "total": "1.29",
+          "created_at": "2026-10-01T10:00:00Z",
+          "order_date": "2026-10-01",
+          "is_paid": false,
+          "note": null
+        },
+        {
+          "id": 4,
+          "customer": "customer-4",
+          "country": "DE",
+          "total": "1.39",
+          "created_at": "2026-10-01T11:00:00Z",
+          "order_date": null,
+          "is_paid": true,
+          "note": null
+        },
+        {
+          "id": 5,
+          "customer": "customer-5",
+          "country": "US",
+          "total": null,
+          "created_at": "2026-10-01T12:00:00Z",
+          "order_date": "2026-10-01",
+          "is_paid": false,
+          "note": null
+        },
+        {
+          "id": 6,
+          "customer": "customer-6",
+          "country": "PL",
+          "total": "1.59",
+          "created_at": "2026-10-01T08:00:00Z",
+          "order_date": "2026-10-01",
+          "is_paid": null,
+          "note": "note-6"
+        },
+        {
+          "id": 7,
+          "customer": "customer-0",
+          "country": "DE",
+          "total": "1.69",
+          "created_at": "2026-10-01T09:00:00Z",
+          "order_date": "2026-10-01",
+          "is_paid": false,
+          "note": "note-7"
+        },
+        {
+          "id": 8,
+          "customer": "customer-1",
+          "country": "US",
+          "total": "1.79",
+          "created_at": "2026-10-01T10:00:00Z",
+          "order_date": null,
+          "is_paid": true,
+          "note": "note-8"
+        },
+        {
+          "id": 9,
+          "customer": "customer-2",
+          "country": "PL",
+          "total": "1.89",
+          "created_at": "2026-10-01T11:00:00Z",
+          "order_date": "2026-10-01",
+          "is_paid": false,
+          "note": "note-9"
+        },
+        {
+          "id": 10,
+          "customer": "customer-3",
+          "country": "DE",
+          "total": null,
+          "created_at": "2026-10-01T12:00:00Z",
+          "order_date": "2026-10-01",
+          "is_paid": true,
+          "note": "note-10"
+        }
+      ]
+    }
+  ]
+}

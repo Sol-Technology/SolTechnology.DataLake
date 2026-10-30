@@ -4,6 +4,9 @@
     <File Path="LICENSE.md" />
     <File Path="docs/ROADMAP.md" />
   </Folder>
+  <Folder Name="/spikes/">
+    <Project Path="spikes/IcebergSpike/IcebergSpike.csproj" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/SolTechnology.DataLake.UnitTests/SolTechnology.DataLake.UnitTests.csproj" />
   </Folder>
