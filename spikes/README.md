@@ -1,6 +1,6 @@
 # Spikes
 
-Throwaway code that answers questions before the real implementation. Not shipped, not an API.
+Throwaway code that answers questions before the real implementation. Not shipped, not an API. Findings: [REPORT.md](REPORT.md).
 
 ## IcebergSpike
 
