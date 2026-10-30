@@ -10,6 +10,7 @@
 
 	<ItemGroup>
 		<PackageReference Include="AvroConvert" />
+		<PackageReference Include="AWSSDK.S3" />
 		<PackageReference Include="AwesomeAssertions" />
 		<PackageReference Include="Microsoft.NET.Test.Sdk" />
 		<PackageReference Include="NUnit" />

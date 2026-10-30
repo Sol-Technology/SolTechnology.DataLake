@@ -6,18 +6,18 @@ using SolTechnology.Avro;
 namespace IcebergSpike;
 
 // metadata.json -> snapshot -> manifest list -> manifests -> Parquet data files -> rows.
-public sealed class IcebergTable(TableMetadata metadata, Func<string, string> resolve)
+public sealed class IcebergTable(TableMetadata metadata, IFileIO io)
 {
     public TableMetadata Metadata { get; } = metadata;
 
-    public static IcebergTable Load(string metadataPath, Func<string, string> resolve) => new(TableMetadata.Load(metadataPath), resolve);
+    public static IcebergTable Load(string metadataPath, IFileIO io) => new(TableMetadata.Load(metadataPath), io);
 
     public async Task<List<DataFile>> PlanFiles(Snapshot snapshot, IReadOnlyList<Predicate> filter, ScanMetrics metrics)
     {
         var schema = Metadata.Schema(snapshot.SchemaId ?? Metadata.CurrentSchemaId);
         var files = new List<DataFile>();
 
-        await foreach (var manifest in AvroConvert.Deserialize<ManifestFile>(File.OpenRead(resolve(snapshot.ManifestList))))
+        await foreach (var manifest in AvroConvert.Deserialize<ManifestFile>(await io.OpenAsync(snapshot.ManifestList)))
         {
             metrics.Manifests++;
             if (manifest.Content != 0)
@@ -30,7 +30,7 @@ public sealed class IcebergTable(TableMetadata metadata, Func<string, string> re
                 continue;
             }
 
-            await foreach (var entry in AvroConvert.Deserialize<ManifestEntry>(File.OpenRead(resolve(manifest.ManifestPath))))
+            await foreach (var entry in AvroConvert.Deserialize<ManifestEntry>(await io.OpenAsync(manifest.ManifestPath)))
             {
                 if (entry.Status == 2) continue;
                 metrics.DataFiles++;
@@ -53,18 +53,21 @@ public sealed class IcebergTable(TableMetadata metadata, Func<string, string> re
         foreach (var file in await PlanFiles(snapshot, filter, metrics))
         {
             if (file.FileFormat != "PARQUET") throw new NotSupportedException($"File format {file.FileFormat}");
-            await foreach (var row in ReadParquet(resolve(file.FilePath), schema))
+            await foreach (var row in ReadFile(file, schema))
                 if (filter.All(p => p.Matches(row[p.Column]))) rows.Add(row);
         }
         return rows;
     }
 
-    public IAsyncEnumerable<Dictionary<string, object?>> ReadFile(DataFile file, IcebergSchema schema) => ReadParquet(resolve(file.FilePath), schema);
+    public async IAsyncEnumerable<Dictionary<string, object?>> ReadFile(DataFile file, IcebergSchema schema)
+    {
+        await using var stream = await io.OpenAsync(file.FilePath);
+        await foreach (var row in ReadParquet(stream, file.FilePath, schema)) yield return row;
+    }
 
     // Columns are matched by Iceberg field id, not by name: renamed columns keep their id, added columns are missing in old files.
-    private static async IAsyncEnumerable<Dictionary<string, object?>> ReadParquet(string path, IcebergSchema schema)
+    private static async IAsyncEnumerable<Dictionary<string, object?>> ReadParquet(Stream stream, string path, IcebergSchema schema)
     {
-        await using var stream = File.OpenRead(path);
         await using var reader = await ParquetReader.CreateAsync(stream, new ParquetOptions { UseDateOnlyTypeForDates = true });
         var byId = reader.Schema.GetDataFields().ToDictionary(f => f.SchemaElement?.FieldId
             ?? throw new NotSupportedException($"{path} has no field ids; name mapping is not supported."));

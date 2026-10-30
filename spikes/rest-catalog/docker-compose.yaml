@@ -1,0 +1,95 @@
+# Iceberg REST catalog for the spike: Lakekeeper (no auth) + Postgres + Silo (S3 and STS, MinIO fork).
+# `docker compose up -d` and wait for the `seed` container to exit; it writes expected/orders.json.
+# Lakekeeper vends S3 credentials (STS) on loadTable; the S3 endpoint it hands out is http://silo:9000,
+# so clients on the host map it to http://localhost:9000.
+services:
+  db:
+    image: postgres:17
+    environment:
+      - POSTGRES_PASSWORD=postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -p 5432 -d postgres"]
+      interval: 2s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+
+  migrate:
+    image: &lakekeeper quay.io/lakekeeper/catalog:latest
+    environment: &lakekeeper-env
+      - LAKEKEEPER__PG_ENCRYPTION_KEY=spike-only-not-secure
+      - LAKEKEEPER__PG_DATABASE_URL_READ=postgresql://postgres:postgres@db:5432/postgres
+      - LAKEKEEPER__PG_DATABASE_URL_WRITE=postgresql://postgres:postgres@db:5432/postgres
+      - LAKEKEEPER__AUTHZ_BACKEND=allowall
+    command: ["migrate"]
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  lakekeeper:
+    image: *lakekeeper
+    environment: *lakekeeper-env
+    command: ["serve"]
+    healthcheck:
+      test: ["CMD", "/home/nonroot/lakekeeper", "healthcheck"]
+      interval: 1s
+      timeout: 10s
+      retries: 10
+      start_period: 3s
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "8181:8181"
+
+  silo:
+    image: pgsty/silo:RELEASE.2026-09-03T13-18-01Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: silo-root-user
+      MINIO_ROOT_PASSWORD: silo-root-password
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 2s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+    ports:
+      - "9000:9000"
+
+  create-bucket:
+    image: pgsty/silo:RELEASE.2026-09-03T13-18-01Z
+    entrypoint: /bin/sh
+    command: ["-c", "mc alias set local http://silo:9000 silo-root-user silo-root-password && mc mb --ignore-existing local/lake"]
+    depends_on:
+      silo:
+        condition: service_healthy
+
+  setup:
+    image: curlimages/curl
+    restart: "no"
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        curl -sf -X POST http://lakekeeper:8181/management/v1/bootstrap -H 'Content-Type: application/json' --data '{"accept-terms-of-use": true}'
+        curl -sf -X POST http://lakekeeper:8181/management/v1/warehouse -H 'Content-Type: application/json' --data @/setup/warehouse.json
+    volumes:
+      - ./warehouse.json:/setup/warehouse.json:ro
+    depends_on:
+      lakekeeper:
+        condition: service_healthy
+      create-bucket:
+        condition: service_completed_successfully
+
+  seed:
+    image: python:3.12-slim
+    restart: "no"
+    command: ["sh", "-c", "pip install -q --root-user-action=ignore 'pyiceberg[pyarrow]==0.10.0' && python /seed/seed.py"]
+    volumes:
+      - ./seed.py:/seed/seed.py:ro
+      - ./expected:/out
+    depends_on:
+      setup:
+        condition: service_completed_successfully

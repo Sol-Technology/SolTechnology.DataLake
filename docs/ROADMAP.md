@@ -6,11 +6,11 @@ Milestones in order. No dates: this is a side project and AvroConvert 4.0 comes 
 
 A throwaway prototype that answers the hard questions before the real code. Lives in `spikes/`, does not ship.
 
-- [ ] Local test environment: MinIO + Lakekeeper (REST catalog) in Docker, PyIceberg or Spark to create test tables
+- [x] Local test environment: MinIO + Lakekeeper (REST catalog) in Docker, PyIceberg or Spark to create test tables
 - [ ] Test tables: partitioned, after `MERGE` (with delete files), after a schema change
 - [x] Read `metadata.json` → snapshot → manifest list → manifests (Avro, through AvroConvert)
 - [x] Read data files with Parquet.Net: column projection, skipping files by manifest statistics
-- [ ] REST catalog: `loadTable`, OAuth2 client credentials, credentials vended by the catalog
+- [ ] REST catalog: `loadTable`, OAuth2 client credentials, credentials vended by the catalog. Done: `loadTable` and vended S3 credentials (Lakekeeper). Left: OAuth2
 - [ ] Measure the column layer: one mapper over Parquet.Net columns and Arrow vs everything through Arrow
 - [x] Writing Parquet with `field_id`: Parquet.Net change, ParquetSharp or own writer. Answer: Parquet.Net 6.1 writes it (`DataField.FieldId`), checked with pyarrow
 - [ ] Which managed catalogs accept writes from an outside client (Unity, Snowflake, Glue, S3 Tables, Polaris)

@@ -351,3 +351,4 @@ MigrationBackup/
 
 # Spike test output
 spikes/fixtures/written/
+spikes/rest-catalog/expected/

@@ -13,3 +13,15 @@ Reads Iceberg tables written by PyIceberg and checks every snapshot against the 
 ```bash
 dotnet test spikes/IcebergSpike
 ```
+
+## rest-catalog
+
+Lakekeeper (Iceberg REST catalog) with Postgres and Silo (S3 + STS, a MinIO fork) in Docker. A PyIceberg container creates `shop.orders` through the catalog and writes the rows it reads back to `rest-catalog/expected/orders.json`.
+
+```bash
+cd spikes/rest-catalog && docker compose up -d   # wait until the seed container exits
+dotnet test spikes/IcebergSpike --filter TestCategory=Docker
+docker compose down -v
+```
+
+`RestCatalogTests` load the table through REST with vended S3 credentials and read it from Silo. Without the catalog running they are skipped. Lakekeeper hands out `http://silo:9000` as the S3 endpoint; the tests use `http://localhost:9000` instead.

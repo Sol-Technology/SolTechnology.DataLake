@@ -31,7 +31,7 @@ internal static class Oracle
     public static JsonElement Expected(string table) => JsonDocument.Parse(File.ReadAllText(Fixtures.Expected(table))).RootElement;
 
     public static IcebergTable Table(string table) =>
-        IcebergTable.Load(Path.Combine(Fixtures.Warehouse, Expected(table).GetProperty("metadata").GetString()!), Fixtures.Resolve);
+        IcebergTable.Load(Path.Combine(Fixtures.Warehouse, Expected(table).GetProperty("metadata").GetString()!), new LocalFileIO(Fixtures.Resolve));
 
     public static List<JsonElement> Rows(string table, long? snapshotId = null)
     {

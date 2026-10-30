@@ -21,8 +21,19 @@ public sealed class TableMetadata
     public Snapshot Snapshot(long? id = null) =>
         Snapshots.Single(s => s.SnapshotId == (id ?? CurrentSnapshotId ?? throw new InvalidOperationException("Table has no snapshot.")));
 
-    public static TableMetadata Load(string path) =>
-        JsonSerializer.Deserialize<TableMetadata>(File.ReadAllBytes(path)) ?? throw new InvalidDataException(path);
+    // Some catalogs (Lakekeeper) write gzip-compressed metadata: *.gz.metadata.json.
+    public static TableMetadata Load(string path)
+    {
+        var bytes = File.ReadAllBytes(path);
+        if (bytes is [0x1f, 0x8b, ..])
+        {
+            using var gzip = new System.IO.Compression.GZipStream(new MemoryStream(bytes), System.IO.Compression.CompressionMode.Decompress);
+            using var json = new MemoryStream();
+            gzip.CopyTo(json);
+            bytes = json.ToArray();
+        }
+        return JsonSerializer.Deserialize<TableMetadata>(bytes) ?? throw new InvalidDataException(path);
+    }
 }
 
 public sealed class IcebergSchema
