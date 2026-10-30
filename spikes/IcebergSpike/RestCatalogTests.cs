@@ -45,6 +45,26 @@ public class RestCatalogTests
     }
 
     [Test]
+    public async Task Applies_position_deletes_written_by_Trino()
+    {
+        var expectedFile = Path.Combine(Path.GetDirectoryName(ExpectedFile)!, "orders_mor.json");
+        if (!File.Exists(expectedFile)) Assert.Ignore("Run spikes/rest-catalog/deletes.sh first.");
+        var expected = JsonDocument.Parse(File.ReadAllText(expectedFile)).RootElement;
+
+        var catalog = new RestCatalog(_http, CatalogUri, "spike");
+        var loaded = await catalog.LoadTableAsync("shop", "orders_mor");
+        using var io = new S3FileIO(loaded.PropertiesFor(loaded.Metadata.Location), endpointOverride: S3FromHost);
+        var metrics = new ScanMetrics();
+
+        var rows = (await new IcebergTable(loaded.Metadata, io).Scan(metrics: metrics)).OrderBy(r => (long)r["id"]!).ToList();
+        TestContext.Out.WriteLine(metrics);
+
+        metrics.DeleteFiles.Should().BePositive();
+        metrics.RowsDeleted.Should().Be(3, "Trino deleted ids 1 and 12 and rewrote id 4");
+        Oracle.AssertSame(rows, expected.GetProperty("rows").EnumerateArray().ToList());
+    }
+
+    [Test]
     public async Task Filter_skips_files_on_S3()
     {
         var catalog = new RestCatalog(_http, CatalogUri, "spike");

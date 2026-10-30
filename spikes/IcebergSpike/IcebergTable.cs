@@ -12,18 +12,32 @@ public sealed class IcebergTable(TableMetadata metadata, IFileIO io)
 
     public static IcebergTable Load(string metadataPath, IFileIO io) => new(TableMetadata.Load(metadataPath), io);
 
-    public async Task<List<DataFile>> PlanFiles(Snapshot snapshot, IReadOnlyList<Predicate> filter, ScanMetrics metrics)
+    public async Task<List<DataFile>> PlanFiles(Snapshot snapshot, IReadOnlyList<Predicate> filter, ScanMetrics metrics) =>
+        (await Plan(snapshot, filter, metrics)).DataFiles.Select(t => t.File).ToList();
+
+    public async Task<ScanPlan> Plan(Snapshot snapshot, IReadOnlyList<Predicate> filter, ScanMetrics metrics)
     {
         var schema = Metadata.Schema(snapshot.SchemaId ?? Metadata.CurrentSchemaId);
-        var files = new List<DataFile>();
+        var plan = new ScanPlan([], []);
 
         await foreach (var manifest in AvroConvert.Deserialize<ManifestFile>(await io.OpenAsync(snapshot.ManifestList)))
         {
             metrics.Manifests++;
-            if (manifest.Content != 0)
-                throw new NotSupportedException($"Delete files are not supported yet (manifest {manifest.ManifestPath}).");
-
             var spec = Metadata.Spec(manifest.PartitionSpecId);
+
+            // Delete manifests are not pruned by the data filter: their column stats describe file_path and pos.
+            if (manifest.Content == 1)
+            {
+                await foreach (var entry in AvroConvert.Deserialize<ManifestEntry>(await io.OpenAsync(manifest.ManifestPath)))
+                {
+                    if (entry.Status == 2) continue;
+                    if (entry.DataFile.Content == 2)
+                        throw new NotSupportedException($"Equality delete files are not supported yet ({entry.DataFile.FilePath}).");
+                    plan.DeleteFiles.Add(new ScanTask(entry.DataFile, entry.SequenceNumber ?? manifest.SequenceNumber));
+                }
+                continue;
+            }
+
             if (!ManifestMayMatch(manifest, spec, schema, filter))
             {
                 metrics.ManifestsSkipped++;
@@ -36,10 +50,12 @@ public sealed class IcebergTable(TableMetadata metadata, IFileIO io)
                 metrics.DataFiles++;
                 if (!PartitionMayMatch(entry.DataFile, spec, schema, filter)) metrics.SkippedByPartition++;
                 else if (!StatsMayMatch(entry.DataFile, schema, filter)) metrics.SkippedByStats++;
-                else files.Add(entry.DataFile);
+                // Sequence number inherited from the manifest when the entry has none (spec: "Sequence Number Inheritance").
+                else plan.DataFiles.Add(new ScanTask(entry.DataFile, entry.SequenceNumber ?? manifest.SequenceNumber));
             }
         }
-        return files;
+        metrics.DeleteFiles = plan.DeleteFiles.Count;
+        return plan;
     }
 
     public async Task<List<Dictionary<string, object?>>> Scan(long? snapshotId = null, IReadOnlyList<Predicate>? filter = null, ScanMetrics? metrics = null)
@@ -48,26 +64,52 @@ public sealed class IcebergTable(TableMetadata metadata, IFileIO io)
         metrics ??= new ScanMetrics();
         var snapshot = Metadata.Snapshot(snapshotId);
         var schema = Metadata.Schema(snapshot.SchemaId ?? Metadata.CurrentSchemaId);
+        var plan = await Plan(snapshot, filter, metrics);
+        var deletes = await PositionDeletes(plan.DeleteFiles);
         var rows = new List<Dictionary<string, object?>>();
 
-        foreach (var file in await PlanFiles(snapshot, filter, metrics))
+        foreach (var task in plan.DataFiles)
         {
-            if (file.FileFormat != "PARQUET") throw new NotSupportedException($"File format {file.FileFormat}");
-            await foreach (var row in ReadFile(file, schema))
+            if (task.File.FileFormat != "PARQUET") throw new NotSupportedException($"File format {task.File.FileFormat}");
+            // A position delete applies to data files with a sequence number <= its own.
+            var deleted = deletes.TryGetValue(task.File.FilePath, out var list)
+                ? list.Where(d => d.SequenceNumber >= task.SequenceNumber).Select(d => d.Position).ToHashSet()
+                : null;
+            metrics.RowsDeleted += deleted?.Count ?? 0;
+            await foreach (var row in ReadFile(task.File, schema, deleted))
                 if (filter.All(p => p.Matches(row[p.Column]))) rows.Add(row);
         }
         return rows;
     }
 
-    public async IAsyncEnumerable<Dictionary<string, object?>> ReadFile(DataFile file, IcebergSchema schema)
+    public async IAsyncEnumerable<Dictionary<string, object?>> ReadFile(DataFile file, IcebergSchema schema, IReadOnlySet<long>? deletedPositions = null)
     {
         await using var stream = await io.OpenAsync(file.FilePath);
-        await foreach (var row in ReadParquet(stream, file.FilePath, schema)) yield return row;
+        await foreach (var row in ReadParquet(stream, file.FilePath, schema, deletedPositions)) yield return row;
+    }
+
+    // Position delete files: (file_path, pos) with reserved field ids 2147483546 and 2147483545.
+    private async Task<Dictionary<string, List<(long SequenceNumber, long Position)>>> PositionDeletes(List<ScanTask> deleteFiles)
+    {
+        var schema = new IcebergSchema { Fields = [Reserved(2147483546, "file_path", "string"), Reserved(2147483545, "pos", "long")] };
+        var result = new Dictionary<string, List<(long, long)>>();
+        foreach (var task in deleteFiles)
+            await foreach (var row in ReadFile(task.File, schema))
+            {
+                var path = (string)row["file_path"]!;
+                if (!result.TryGetValue(path, out var list)) result[path] = list = [];
+                list.Add((task.SequenceNumber, (long)row["pos"]!));
+            }
+        return result;
+
+        static SchemaField Reserved(int id, string name, string type) =>
+            new() { Id = id, Name = name, Required = true, Type = System.Text.Json.JsonDocument.Parse($"\"{type}\"").RootElement };
     }
 
     // Columns are matched by Iceberg field id, not by name: renamed columns keep their id, added columns are missing in old files.
-    private static async IAsyncEnumerable<Dictionary<string, object?>> ReadParquet(Stream stream, string path, IcebergSchema schema)
+    private static async IAsyncEnumerable<Dictionary<string, object?>> ReadParquet(Stream stream, string path, IcebergSchema schema, IReadOnlySet<long>? deletedPositions)
     {
+        long position = 0;
         await using var reader = await ParquetReader.CreateAsync(stream, new ParquetOptions { UseDateOnlyTypeForDates = true });
         var byId = reader.Schema.GetDataFields().ToDictionary(f => f.SchemaElement?.FieldId
             ?? throw new NotSupportedException($"{path} has no field ids; name mapping is not supported."));
@@ -82,8 +124,9 @@ public sealed class IcebergTable(TableMetadata metadata, IFileIO io)
                     ? (await ReadColumn(group, dataField, count)).Select(v => Values.Normalize(field.PrimitiveType, v)).ToArray()
                     : new object?[count];
 
-            for (var r = 0; r < count; r++)
-                yield return schema.Fields.ToDictionary(f => f.Name, f => columns[f.Name][r]);
+            for (var r = 0; r < count; r++, position++)
+                if (deletedPositions is null || !deletedPositions.Contains(position))
+                    yield return schema.Fields.ToDictionary(f => f.Name, f => columns[f.Name][r]);
         }
     }
 

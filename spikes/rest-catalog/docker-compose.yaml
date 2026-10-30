@@ -73,8 +73,9 @@ services:
     command:
       - -c
       - |
-        curl -sf -X POST http://lakekeeper:8181/management/v1/bootstrap -H 'Content-Type: application/json' --data '{"accept-terms-of-use": true}'
-        curl -sf -X POST http://lakekeeper:8181/management/v1/warehouse -H 'Content-Type: application/json' --data @/setup/warehouse.json
+        curl -s -X POST http://lakekeeper:8181/management/v1/bootstrap -H 'Content-Type: application/json' --data '{"accept-terms-of-use": true}'
+        curl -s -X POST http://lakekeeper:8181/management/v1/warehouse -H 'Content-Type: application/json' --data @/setup/warehouse.json
+        curl -sf 'http://lakekeeper:8181/catalog/v1/config?warehouse=spike'
     volumes:
       - ./warehouse.json:/setup/warehouse.json:ro
     depends_on:
@@ -90,6 +91,22 @@ services:
     volumes:
       - ./seed.py:/seed/seed.py:ro
       - ./expected:/out
+    depends_on:
+      setup:
+        condition: service_completed_successfully
+
+  # Optional (deletes.sh): Trino writes positional delete files on DELETE / UPDATE.
+  trino:
+    image: trinodb/trino:476
+    profiles: ["trino"]
+    volumes:
+      - ./trino/lake.properties:/etc/trino/catalog/lake.properties:ro
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/v1/info"]
+      interval: 3s
+      timeout: 10s
+      retries: 40
+      start_period: 10s
     depends_on:
       setup:
         condition: service_completed_successfully

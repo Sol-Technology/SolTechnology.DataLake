@@ -29,7 +29,13 @@ public sealed class ScanMetrics
     public int DataFiles { get; set; }
     public int SkippedByPartition { get; set; }
     public int SkippedByStats { get; set; }
+    public int DeleteFiles { get; set; }
+    public int RowsDeleted { get; set; }
     public int FilesRead => DataFiles - SkippedByPartition - SkippedByStats;
     public override string ToString() =>
-        $"manifests {Manifests} (skipped {ManifestsSkipped}), files {DataFiles}: skipped by partition {SkippedByPartition}, by stats {SkippedByStats}, read {FilesRead}";
+        $"manifests {Manifests} (skipped {ManifestsSkipped}), files {DataFiles}: skipped by partition {SkippedByPartition}, by stats {SkippedByStats}, read {FilesRead}; delete files {DeleteFiles}, rows deleted {RowsDeleted}";
 }
+
+public sealed record ScanTask(DataFile File, long SequenceNumber);
+
+public sealed record ScanPlan(List<ScanTask> DataFiles, List<ScanTask> DeleteFiles);

@@ -21,7 +21,10 @@ Lakekeeper (Iceberg REST catalog) with Postgres and Silo (S3 + STS, a MinIO fork
 ```bash
 cd spikes/rest-catalog && docker compose up -d   # wait until the seed container exits
 dotnet test spikes/IcebergSpike --filter TestCategory=Docker
-docker compose down -v
+./deletes.sh                                       # optional: position deletes from Trino
+docker compose --profile trino down -v
 ```
 
-`RestCatalogTests` load the table through REST with vended S3 credentials and read it from Silo. Without the catalog running they are skipped. Lakekeeper hands out `http://silo:9000` as the S3 endpoint; the tests use `http://localhost:9000` instead.
+`deletes.sh` starts Trino and makes `shop.orders_mor` with `DELETE` and `UPDATE`, so the table has position delete files; PyIceberg dumps the rows to `expected/orders_mor.json`.
+
+`RestCatalogTests` load the tables through REST with vended S3 credentials and read it from Silo. Without the catalog running they are skipped. Lakekeeper hands out `http://silo:9000` as the S3 endpoint; the tests use `http://localhost:9000` instead.
