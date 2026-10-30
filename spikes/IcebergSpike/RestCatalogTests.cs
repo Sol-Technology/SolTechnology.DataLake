@@ -17,8 +17,15 @@ public class RestCatalogTests
     {
         _http = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
         try { (await _http.GetAsync(new Uri(CatalogUri, "v1/config?warehouse=spike"))).EnsureSuccessStatusCode(); }
-        catch (Exception e) when (e is HttpRequestException or TaskCanceledException) { Assert.Ignore("Lakekeeper is not running: " + e.Message); }
-        if (!File.Exists(ExpectedFile)) Assert.Ignore("Run the seed container first.");
+        catch (Exception e) when (e is HttpRequestException or TaskCanceledException) { Skip("Lakekeeper is not running: " + e.Message); }
+        if (!File.Exists(ExpectedFile)) Skip("Run the seed container first.");
+    }
+
+    // CI sets REQUIRE_DOCKER=1: there a missing catalog or fixture is a failure, not a skip.
+    private static void Skip(string reason)
+    {
+        if (Environment.GetEnvironmentVariable("REQUIRE_DOCKER") == "1") Assert.Fail(reason);
+        Assert.Ignore(reason);
     }
 
     [TearDown]
@@ -48,7 +55,7 @@ public class RestCatalogTests
     public async Task Applies_position_deletes_written_by_Trino()
     {
         var expectedFile = Path.Combine(Path.GetDirectoryName(ExpectedFile)!, "orders_mor.json");
-        if (!File.Exists(expectedFile)) Assert.Ignore("Run spikes/rest-catalog/deletes.sh first.");
+        if (!File.Exists(expectedFile)) Skip("Run spikes/rest-catalog/deletes.sh first.");
         var expected = JsonDocument.Parse(File.ReadAllText(expectedFile)).RootElement;
 
         var catalog = new RestCatalog(_http, CatalogUri, "spike");

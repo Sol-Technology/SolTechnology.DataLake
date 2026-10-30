@@ -7,7 +7,11 @@ cd "$(dirname "$0")"
 docker compose --profile trino up -d --wait trino
 
 sql() { docker compose exec -T trino trino --catalog lake --schema shop --execute "$1"; }
-until sql "SELECT 1" >/dev/null 2>&1; do sleep 3; done
+tries=0
+until sql "SELECT 1" >/dev/null 2>&1; do
+  tries=$((tries + 1)); [ "$tries" -gt 60 ] && { echo "Trino did not start"; exit 1; }
+  sleep 3
+done
 sql "DROP TABLE IF EXISTS orders_mor"
 sql "CREATE TABLE orders_mor WITH (partitioning = ARRAY['country'], format_version = 2) AS SELECT * FROM orders"
 sql "DELETE FROM orders_mor WHERE id IN (1, 12)"

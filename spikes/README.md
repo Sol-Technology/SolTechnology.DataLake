@@ -27,4 +27,6 @@ docker compose --profile trino down -v
 
 `deletes.sh` starts Trino and makes `shop.orders_mor` with `DELETE` and `UPDATE`, so the table has position delete files; PyIceberg dumps the rows to `expected/orders_mor.json`.
 
-`RestCatalogTests` load the tables through REST with vended S3 credentials and read it from Silo. Without the catalog running they are skipped. Lakekeeper hands out `http://silo:9000` as the S3 endpoint; the tests use `http://localhost:9000` instead.
+`RestCatalogTests` load the tables through REST with vended S3 credentials and read it from Silo. Without the catalog running they are skipped. CI runs the same steps in the `rest-catalog` job of `.github/workflows/build.yml` with `REQUIRE_DOCKER=1`, so there a catalog that does not start is a failure, not a skip.
+
+Lakekeeper hands out `http://silo:9000` as the S3 endpoint; the tests use `http://localhost:9000` instead.
