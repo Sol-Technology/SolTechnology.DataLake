@@ -30,6 +30,7 @@
 	<ItemGroup>
 		<!-- The spike reader until src/SolTechnology.DataLake has its own. -->
 		<ProjectReference Include="..\..\spikes\IcebergSpike\IcebergSpike.csproj" />
+		<ProjectReference Include="..\..\src\SolTechnology.DataLake.Aws\SolTechnology.DataLake.Aws.csproj" />
 	</ItemGroup>
 
 </Project>

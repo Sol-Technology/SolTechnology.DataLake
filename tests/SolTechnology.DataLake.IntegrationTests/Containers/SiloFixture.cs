@@ -39,11 +39,14 @@ public sealed class SiloFixture(TestContainersContext context) : IAsyncDisposabl
         _container = builder.Build();
         await _container.StartAsync(ct).ConfigureAwait(false);
 
-        using var s3 = new AmazonS3Client(new BasicAWSCredentials(User, Password),
-            new AmazonS3Config { ServiceURL = Endpoint, ForcePathStyle = true, AuthenticationRegion = Region });
+        using var s3 = CreateClient();
         if (!(await s3.ListBucketsAsync(ct).ConfigureAwait(false)).Buckets?.Any(b => b.BucketName == Bucket) ?? true)
             await s3.PutBucketAsync(Bucket, ct).ConfigureAwait(false);
     }
+
+    /// <summary>S3 client with the root credentials, from the host.</summary>
+    public AmazonS3Client CreateClient() => new(new BasicAWSCredentials(User, Password),
+        new AmazonS3Config { ServiceURL = Endpoint, ForcePathStyle = true, AuthenticationRegion = Region });
 
     public async ValueTask DisposeAsync()
     {

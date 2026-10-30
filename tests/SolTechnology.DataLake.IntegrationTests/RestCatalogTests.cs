@@ -43,7 +43,7 @@ public class RestCatalogTests
     public async Task Applies_position_deletes_written_by_Trino()
     {
         var loaded = await Catalog().LoadTableAsync("shop", "orders_mor");
-        var metrics = new ScanMetrics();
+        var metrics = new IcebergSpike.ScanMetrics();
 
         var rows = await ScanAsync(loaded, metrics: metrics);
         TestContext.Out.WriteLine(metrics);
@@ -57,7 +57,7 @@ public class RestCatalogTests
     public async Task Filter_skips_files_on_S3()
     {
         var loaded = await Catalog().LoadTableAsync("shop", "orders");
-        var metrics = new ScanMetrics();
+        var metrics = new IcebergSpike.ScanMetrics();
         var oct2 = new DateTimeOffset(2026, 10, 2, 0, 0, 0, TimeSpan.Zero);
 
         var rows = await ScanAsync(loaded, [Predicate.Eq("country", "PL"), new("created_at", oct2, oct2.AddDays(1).AddTicks(-10))], metrics);
@@ -71,7 +71,7 @@ public class RestCatalogTests
         new(_http, Lakekeeper.CatalogUri, LakekeeperFixture.Warehouse, Keycloak.Credentials(_http));
 
     // Lakekeeper hands out the S3 endpoint containers use (http://silo:9000); from the host it is Silo's mapped port.
-    private static async Task<List<Dictionary<string, object?>>> ScanAsync(LoadedTable loaded, IReadOnlyList<Predicate>? filter = null, ScanMetrics? metrics = null)
+    private static async Task<List<Dictionary<string, object?>>> ScanAsync(LoadedTable loaded, IReadOnlyList<Predicate>? filter = null, IcebergSpike.ScanMetrics? metrics = null)
     {
         using var io = new S3FileIO(loaded.PropertiesFor(loaded.Metadata.Location), endpointOverride: Silo.Endpoint);
         var rows = await new IcebergTable(loaded.Metadata, io).Scan(filter: filter, metrics: metrics);

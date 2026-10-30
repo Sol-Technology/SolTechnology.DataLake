@@ -21,17 +21,17 @@ A throwaway prototype that answers the hard questions before the real code. Live
 
 A folder of Parquet or Avro files read as one table.
 
-- [ ] Storage abstraction: list, range read, write, conditional write, delete; local file system
-- [ ] `SolTechnology.DataLake.Aws`: S3 and S3-compatible (MinIO, R2)
+- [ ] Storage abstraction: list, range read, write, conditional write, delete; local file system. Done: list and range read, local disk. Left: write, conditional write, delete (needed for 0.2)
+- [x] `SolTechnology.DataLake.Aws`: S3 and S3-compatible (MinIO, R2)
 - [ ] `SolTechnology.DataLake.Azure`: ADLS Gen2 and OneLake
-- [ ] Parquet read: projection, row group statistics, logical types, nested types
+- [ ] Parquet read: projection, row group statistics, logical types, nested types. Done: projection, statistics, flat columns. Left: nested types
 - [ ] Avro container read through AvroConvert
-- [ ] Column layer and compiled mapper from columns to C# classes
+- [x] Column layer and compiled mapper from columns to C# classes
 - [ ] Type mapping: decimals, `DateOnly`, `TimeOnly`, timestamps through SolTechnology.DateTimeZone, `Guid`, nullability
-- [ ] Discovery: hive partitions (`date=…/country=…`), partition types from the class
-- [ ] Schema merge across files, clear error on a type conflict
-- [ ] Filters: LINQ to predicate, pruning by partition, by file and row group statistics, then by row
-- [ ] Metrics: files and bytes read and skipped (`Meter`, `ActivitySource`)
+- [x] Discovery: hive partitions (`date=…/country=…`), partition types from the class
+- [x] Schema merge across files, clear error on a type conflict
+- [x] Filters: LINQ to predicate, pruning by partition, by file and row group statistics, then by row
+- [ ] Metrics: files and bytes read and skipped (`Meter`, `ActivitySource`). Done: `ScanMetrics` per read. Left: `Meter`, `ActivitySource`
 - [ ] CLI `datalake`: `ls`, `schema`, `head`
 - [ ] Benchmarks: vs Parquet.Net file by file, vs `pyarrow.dataset`
 - [ ] Docs and sample: read a partitioned dataset from S3 and ADLS

@@ -142,8 +142,16 @@ public sealed class IcebergTable(TableMetadata metadata, IFileIO io)
         return await (Task<object?[]>)read.Invoke(null, [group, field, count])!;
     }
 
+    // Required columns go into T[], nullable ones into T?[]. Reading a required column into T?[] gave random nulls
+    // with Parquet.Net 6.1 (about 1 scan in 50 under the integration tests).
     private static async Task<object?[]> ReadValues<T>(ParquetRowGroupReader group, DataField field, int count) where T : struct
     {
+        if (!field.IsNullable)
+        {
+            var required = new T[count];
+            await group.ReadAsync(field, required.AsMemory(), null, default);
+            return required.Select(v => (object?)v).ToArray();
+        }
         var values = new T?[count];
         await group.ReadAsync(field, values.AsMemory(), null, default);
         return values.Select(v => v.HasValue ? (object?)v.Value : null).ToArray();
