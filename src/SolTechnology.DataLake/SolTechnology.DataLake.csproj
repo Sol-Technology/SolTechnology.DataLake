@@ -35,7 +35,13 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<PackageReference Include="AvroConvert" />
+		<PackageReference Include="Parquet.Net" />
+	</ItemGroup>
+
+	<ItemGroup>
 		<InternalsVisibleTo Include="SolTechnology.DataLake.UnitTests" />
+		<InternalsVisibleTo Include="SolTechnology.DataLake.IntegrationTests" />
 	</ItemGroup>
 
 </Project>
