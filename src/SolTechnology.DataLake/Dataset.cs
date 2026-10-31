@@ -63,10 +63,32 @@ public sealed class Dataset<T> where T : class
         return new Dataset<T>(Location, _storage, _options, Expression.Lambda<Func<T, bool>>(body, parameter));
     }
 
-    /// <summary>Rows in file order (files sorted by path). Pass <paramref name="metrics"/> to see what was skipped and read.</summary>
+    /// <summary>
+    /// Rows in file order (files sorted by path). Pass <paramref name="metrics"/> to see what was skipped and read.
+    /// Each read is also an activity <c>datalake.scan</c> and adds to the <c>datalake.scan.*</c> counters (<see cref="DataLakeTelemetry"/>).
+    /// </summary>
     public async IAsyncEnumerable<T> ReadAsync(ScanMetrics? metrics = null, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         metrics ??= new ScanMetrics();
+        var before = metrics.Copy();
+        using var activity = DataLakeTelemetry.Source.StartActivity("datalake.scan");
+        activity?.SetTag("datalake.location", Location);
+        activity?.SetTag("datalake.row_type", typeof(T).FullName);
+        if (_filter is not null) activity?.SetTag("datalake.filter", _filter.ToString());
+        try
+        {
+            await foreach (var row in ScanAsync(metrics, cancellationToken).ConfigureAwait(false))
+                yield return row;
+            activity?.SetStatus(System.Diagnostics.ActivityStatusCode.Ok);
+        }
+        finally
+        {
+            DataLakeTelemetry.Record(metrics.Minus(before), activity);
+        }
+    }
+
+    private async IAsyncEnumerable<T> ScanAsync(ScanMetrics metrics, [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
         var map = ClassMap<T>.For(_options.ColumnNaming);
         var predicate = _filter is null ? null : PredicateTranslator.Translate(_filter);
         var residual = _filter?.Compile();

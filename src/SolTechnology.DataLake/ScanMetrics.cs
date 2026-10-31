@@ -24,6 +24,20 @@ public sealed class ScanMetrics
     /// <summary>Bytes fetched from storage.</summary>
     public long BytesRead { get; internal set; }
 
+    internal ScanMetrics Copy() => (ScanMetrics)MemberwiseClone();
+
+    /// <summary>What this read added, when the same instance is passed to several reads.</summary>
+    internal ScanMetrics Minus(ScanMetrics before) => new()
+    {
+        Files = Files - before.Files,
+        FilesSkippedByPartition = FilesSkippedByPartition - before.FilesSkippedByPartition,
+        RowGroups = RowGroups - before.RowGroups,
+        RowGroupsSkippedByStatistics = RowGroupsSkippedByStatistics - before.RowGroupsSkippedByStatistics,
+        RowsRead = RowsRead - before.RowsRead,
+        RowsReturned = RowsReturned - before.RowsReturned,
+        BytesRead = BytesRead - before.BytesRead,
+    };
+
     /// <inheritdoc />
     public override string ToString() =>
         $"files {Files} (skipped by partition {FilesSkippedByPartition}), row groups {RowGroups} (skipped by statistics {RowGroupsSkippedByStatistics}), " +
