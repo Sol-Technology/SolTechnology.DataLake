@@ -15,8 +15,8 @@ namespace SolTechnology.DataLake.Mapping;
 /// <summary>Unit of a TIME column stored as an integer.</summary>
 internal enum TimeScale { None, Millis, Micros, Nanos }
 
-/// <summary>What the physical value of a column means: a UTC instant, or a time of day stored as an integer.</summary>
-internal readonly record struct Logical(bool Utc, TimeScale Time = TimeScale.None)
+/// <summary>What the physical value of a column means: a UTC instant, a time of day stored as an integer, or JSON text stored as bytes.</summary>
+internal readonly record struct Logical(bool Utc, TimeScale Time = TimeScale.None, bool Json = false)
 {
     public static readonly Logical Plain = new(false);
 }
@@ -162,6 +162,8 @@ internal static class Conversions
         if (source == typeof(byte[]) && target == typeof(Guid))
             return Expression.New(typeof(Guid).GetConstructor([typeof(ReadOnlySpan<byte>), typeof(bool)])!,
                 Expression.Convert(value, typeof(ReadOnlySpan<byte>)), Expression.Constant(true));
+        if (source == typeof(byte[]) && target == typeof(string) && logical.Json)
+            return Expression.Call(Expression.Constant(System.Text.Encoding.UTF8), nameof(System.Text.Encoding.GetString), null, value);
         return null;
     }
 

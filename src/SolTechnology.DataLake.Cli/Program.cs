@@ -162,7 +162,8 @@ public static class Program
         if (logical?.UUID is not null || field.ClrType == typeof(Guid)) return "uuid";
         if (field.ClrType == typeof(DateOnly) || logical?.DATE is not null) return "date";
         if (field.ClrType == typeof(ReadOnlyMemory<char>) || field.ClrType == typeof(string)) return "string";
-        if (field.ClrType == typeof(byte[])) return "binary";
+        if (logical?.JSON is not null) return "json";
+        if (field.ClrType == typeof(byte[]) || field.ClrType == typeof(ReadOnlyMemory<byte>)) return "binary";
         return field.ClrType.Name.ToLowerInvariant();
 
         static string Unit(Parquet.Meta.TimeUnit? unit) =>

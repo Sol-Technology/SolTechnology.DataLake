@@ -42,8 +42,17 @@ internal static class ParquetStatistics
                 : unit?.NANOS is not null ? TimeScale.Nanos
                 : TimeScale.None;
         }
-        return new Logical(utc, time);
+        return new Logical(utc, time, element.LogicalType?.JSON is not null || element.ConvertedType == ConvertedType.JSON);
     }
+
+    /// <summary>
+    /// The CLR type DataLake reads a column as. Parquet.Net 6 reports text and binary as <see cref="ReadOnlyMemory{T}"/>
+    /// views into its buffers; DataLake hands out owned <see cref="string"/> and <c>byte[]</c>.
+    /// </summary>
+    public static System.Type ClrOf(DataField field) =>
+        field.ClrType == typeof(ReadOnlyMemory<char>) ? typeof(string)
+        : field.ClrType == typeof(ReadOnlyMemory<byte>) ? typeof(byte[])
+        : field.ClrType;
 
     public static object? Decode(object? raw, DataField field, bool trustTimestamps)
     {
@@ -53,6 +62,8 @@ internal static class ParquetStatistics
                 return null;
             case ReadOnlyMemory<char> chars:
                 return chars.ToString();
+            case ReadOnlyMemory<byte> bytes:
+                return bytes.ToArray();
             case BigDecimal big:
                 return ToDecimal(big);
         }

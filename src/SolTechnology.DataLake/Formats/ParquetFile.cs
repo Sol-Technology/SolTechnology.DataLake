@@ -25,8 +25,9 @@ internal static class ParquetFile<T> where T : class
 
     public static async IAsyncEnumerable<T> ReadAsync(Stream stream, string location, FileScan<T> scan, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
     {
-        await using var reader = await ParquetReader.CreateAsync(stream, Options, leaveStreamOpen: true, ct).ConfigureAwait(false);
-        var (bindings, nested) = Bind(reader.Schema, location, scan, ParquetStatistics.TrustsTimestamps(reader.Metadata?.CreatedBy));
+        await using var reader = await ReadFailure.Guard(() => ParquetReader.CreateAsync(stream, Options, leaveStreamOpen: true, ct), location, null).ConfigureAwait(false);
+        var schema = ReadFailure.Guard(() => reader.Schema, location);
+        var (bindings, nested) = Bind(schema, location, scan, ParquetStatistics.TrustsTimestamps(reader.Metadata?.CreatedBy));
         var byProperty = bindings.ToDictionary(b => b.Property.Property.Name);
         var partitionsByProperty = scan.Partitions.ToDictionary(p => p.Key.Property.Name, p => p.Value);
 
@@ -44,8 +45,8 @@ internal static class ParquetFile<T> where T : class
 
             var rows = new T[count];
             for (var i = 0; i < count; i++) rows[i] = scan.Map.Create();
-            foreach (var binding in bindings) await binding.AssignAsync(group, rows, ct).ConfigureAwait(false);
-            foreach (var binding in nested) await binding.AssignAsync(group, rows, ct).ConfigureAwait(false);
+            foreach (var binding in bindings) await ReadFailure.Guard(() => binding.AssignAsync(group, rows, ct), location, binding.Field.Name).ConfigureAwait(false);
+            foreach (var binding in nested) await ReadFailure.Guard(() => binding.AssignAsync(group, rows, ct), location, binding.Property.Column).ConfigureAwait(false);
             foreach (var (property, value) in scan.Partitions)
                 for (var i = 0; i < count; i++) property.BoxedSetter(rows[i], value);
 
@@ -123,7 +124,7 @@ internal abstract class ColumnBinding<T> where T : class
 
     public static ColumnBinding<T> Create(DataField field, PropertyMap<T> property, Logical logical, bool trustTimestamps, string location)
     {
-        var element = field.ClrType == typeof(ReadOnlyMemory<char>) ? typeof(string) : field.ClrType;
+        var element = ParquetStatistics.ClrOf(field);
         var input = element == typeof(string) || element == typeof(byte[]) ? element
             : field.IsNullable ? typeof(Nullable<>).MakeGenericType(element)
             : element;

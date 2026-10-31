@@ -61,7 +61,13 @@ internal sealed class Shredded
         var values = ((RawColumnData<TValue>)raw).Values;
         var boxed = new object?[values.Length];
         for (var i = 0; i < values.Length; i++)
-            boxed[i] = values[i] is ReadOnlyMemory<char> chars ? chars.ToString() : values[i];
+            boxed[i] = values[i] switch
+            {
+                ReadOnlyMemory<char> chars => chars.ToString(),
+                // A view into the reader's pooled buffer, which is returned when the column is disposed: copy it.
+                ReadOnlyMemory<byte> bytes => bytes.ToArray(),
+                var value => value,
+            };
         return boxed;
     }
 }
@@ -99,15 +105,16 @@ internal sealed class LeafNode(DataField field, int column, Type target, Logical
     {
         long or int when logical.Time != TimeScale.None => Conversions.ConvertValue(value, typeof(TimeOnly), logical, path)!,
         DateTime dt => DateTime.SpecifyKind(dt, logical.Utc ? DateTimeKind.Utc : DateTimeKind.Unspecified),
+        byte[] json when logical.Json => System.Text.Encoding.UTF8.GetString(json),
         _ => value,
     };
 }
 
-internal sealed class StructNode(StructField field, Func<object> create, (NestedNode Node, Action<object, object?>? Set)[] children) : NestedNode
+internal sealed class StructNode(bool nullable, int definedAt, Func<object> create, (NestedNode Node, Action<object, object?>? Set)[] children) : NestedNode
 {
     public override object? Assemble(Shredded[] columns, int[] starts, int[] ends)
     {
-        if (field.IsNullable && ProbeDef(columns, starts) < field.MaxDefinitionLevel) return null;
+        if (nullable && ProbeDef(columns, starts) < definedAt) return null;
         var result = create();
         foreach (var (node, set) in children)
         {
@@ -171,7 +178,7 @@ internal static class NestedBuilder
             case DataField { IsArray: false } data:
             {
                 var logical = ParquetStatistics.LogicalOf(data);
-                var input = data.ClrType == typeof(ReadOnlyMemory<char>) ? typeof(string) : data.ClrType;
+                var input = ParquetStatistics.ClrOf(data);
                 if (target != typeof(object) && !Conversions.CanConvert(input, target, logical))
                     throw new NotSupportedException($"{location}: {Conversions.Mismatch(path, input, target, logical).Message}");
                 leaves.Add(data);
@@ -179,17 +186,22 @@ internal static class NestedBuilder
             }
 
             case DataField data:
-            {
                 // A legacy repeated field: an element exists when the entry is defined at the leaf's level; the list is never null.
+                return RepeatedField(data, target, -1, location, path);
+
+            case ListField list when list.SchemaElement?.RepetitionType == Parquet.Meta.FieldRepetitionType.REPEATED:
+            {
+                // A repeated group without the LIST annotation (protobuf style, repeated_group { nested }): a list of
+                // structs. Parquet.Net shows the group's one field as the list item.
                 var (element, finish) = Collection(target, path, location);
-                var logical = ParquetStatistics.LogicalOf(data);
-                var input = data.ClrType == typeof(ReadOnlyMemory<char>) ? typeof(string) : data.ClrType;
-                if (element != typeof(object) && !Conversions.CanConvert(input, element, logical))
-                    throw new NotSupportedException($"{location}: {Conversions.Mismatch(path, input, element, logical).Message}");
-                leaves.Add(data);
-                var leaf = new LeafNode(data, leaves.Count - 1, element, logical, path) { Leaves = [leaves.Count - 1] };
-                return new RepeatedNode(data, data.MaxDefinitionLevel, -1, finish, [leaf]) { Leaves = leaf.Leaves };
+                var item = BuildStruct([list.Item], false, 0, element, leaves, naming, location, path + "[]");
+                return new RepeatedNode(list, list.MaxDefinitionLevel, -1, finish, [item]) { Leaves = item.Leaves };
             }
+
+            case ListField { Item: DataField { IsArray: true } repeated } list when list.Path[list.Path.Length - 1] == list.Name:
+                // Two-level list from old writers (parquet-mr before 1.9, Spark 1.x): optional group x (LIST) { repeated double array; }.
+                // No middle group: the repeated field itself is the element.
+                return RepeatedField(repeated, target, list.IsNullable ? list.MaxDefinitionLevel : -1, location, path);
 
             case ListField list:
             {
@@ -210,26 +222,39 @@ internal static class NestedBuilder
             }
 
             case StructField structField:
-                return BuildStruct(structField, target, leaves, naming, location, path);
+                return BuildStruct(structField.Fields, structField.IsNullable, structField.MaxDefinitionLevel, target, leaves, naming, location, path);
 
             default:
                 throw new NotSupportedException($"{location}: column '{path}' ({field.SchemaType}) is not supported.");
         }
+
+        NestedNode RepeatedField(DataField data, Type target, int nullBelow, string location, string path)
+        {
+            // An element exists when the entry is defined at the leaf's level.
+            var (element, finish) = Collection(target, path, location);
+            var logical = ParquetStatistics.LogicalOf(data);
+            var input = ParquetStatistics.ClrOf(data);
+            if (element != typeof(object) && !Conversions.CanConvert(input, element, logical))
+                throw new NotSupportedException($"{location}: {Conversions.Mismatch(path, input, element, logical).Message}");
+            leaves.Add(data);
+            var leaf = new LeafNode(data, leaves.Count - 1, element, logical, path) { Leaves = [leaves.Count - 1] };
+            return new RepeatedNode(data, data.MaxDefinitionLevel, nullBelow, finish, [leaf]) { Leaves = leaf.Leaves };
+        }
     }
 
-    private static NestedNode BuildStruct(StructField field, Type target, List<DataField> leaves, JsonNamingPolicy? naming, string location, string path)
+    private static NestedNode BuildStruct(IReadOnlyList<Field> fields, bool nullable, int definedAt, Type target, List<DataField> leaves, JsonNamingPolicy? naming, string location, string path)
     {
         var children = new List<(NestedNode, Action<object, object?>?)>();
 
         if (target == typeof(object) || target == typeof(Dictionary<string, object?>) || target == typeof(IDictionary<string, object?>)
             || target == typeof(IReadOnlyDictionary<string, object?>))
         {
-            foreach (var child in field.Fields)
+            foreach (var child in fields)
             {
                 var name = child.Name;
                 children.Add((Build(child, typeof(object), leaves, naming, location, $"{path}.{name}"), (o, v) => ((Dictionary<string, object?>)o)[name] = v));
             }
-            return new StructNode(field, () => new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase), [.. children])
+            return new StructNode(nullable, definedAt, () => new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase), [.. children])
             {
                 Leaves = children.SelectMany(c => c.Item1.Leaves).ToArray(),
             };
@@ -241,7 +266,7 @@ internal static class NestedBuilder
         var properties = ColumnNames.MappedProperties(target)
             .ToDictionary(p => ColumnNames.Of(p, naming), StringComparer.OrdinalIgnoreCase);
         var bound = new HashSet<PropertyInfo>();
-        foreach (var child in field.Fields)
+        foreach (var child in fields)
         {
             if (properties.TryGetValue(child.Name, out var property))
             {
@@ -259,7 +284,7 @@ internal static class NestedBuilder
         if (missing is not null)
             throw new InvalidDataException($"{location}: struct '{path}' has no field '{ColumnNames.Of(missing, naming)}' for {target.Name}.{missing.Name} ({missing.PropertyType.Name}). Make the property nullable.");
 
-        return new StructNode(field, Constructor(target, location), [.. children]) { Leaves = children.SelectMany(c => c.Item1.Leaves).ToArray() };
+        return new StructNode(nullable, definedAt, Constructor(target, location), [.. children]) { Leaves = children.SelectMany(c => c.Item1.Leaves).ToArray() };
     }
 
     public static Type? CollectionElement(Type type)
@@ -360,6 +385,8 @@ internal static class NestedColumn
         for (var l = 0; l < leaves.Length; l++)
         {
             var starts = new List<int>(rowCount);
+            if (columns[l].Count > 0 && columns[l].RepAt(0) != 0)
+                throw new InvalidDataException($"Column '{leaves[l].Path}' starts in the middle of a row (repetition level {columns[l].RepAt(0)}); the file is corrupt.");
             for (var i = 0; i < columns[l].Count; i++)
                 if (columns[l].RepAt(i) == 0) starts.Add(i);
             if (starts.Count != rowCount)

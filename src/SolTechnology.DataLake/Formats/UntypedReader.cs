@@ -33,8 +33,8 @@ internal static class UntypedReader
 
     private static async IAsyncEnumerable<Dictionary<string, object?>> Parquet(Stream stream, string location, [EnumeratorCancellation] CancellationToken ct)
     {
-        await using var reader = await ParquetReader.CreateAsync(stream, Options, leaveStreamOpen: true, ct).ConfigureAwait(false);
-        var columns = reader.Schema.Fields.Select(field =>
+        await using var reader = await ReadFailure.Guard(() => ParquetReader.CreateAsync(stream, Options, leaveStreamOpen: true, ct), location, null).ConfigureAwait(false);
+        var columns = ReadFailure.Guard(() => reader.Schema, location).Fields.Select(field =>
         {
             var leaves = new List<DataField>();
             var node = NestedBuilder.Build(field, typeof(object), leaves, null, location, field.Name);
@@ -47,7 +47,7 @@ internal static class UntypedReader
             var count = (int)group.RowCount;
             var values = new List<object?[]>();
             foreach (var column in columns)
-                values.Add(await NestedColumn.AssembleAsync(group, column.Node, column.Leaves, count, ct).ConfigureAwait(false));
+                values.Add(await ReadFailure.Guard(() => NestedColumn.AssembleAsync(group, column.Node, column.Leaves, count, ct), location, column.Name).ConfigureAwait(false));
 
             for (var r = 0; r < count; r++)
             {

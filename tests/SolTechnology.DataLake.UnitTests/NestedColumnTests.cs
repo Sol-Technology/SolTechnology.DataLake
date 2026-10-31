@@ -108,6 +108,34 @@ public class NestedColumnTests
         (await nullElement.Should().ThrowAsync<InvalidDataException>()).WithMessage("*'matrix[][]' has a null value*Int32*");
     }
 
+    public sealed class BlobRow
+    {
+        public int Id { get; set; }
+        public List<byte[]>? Blobs { get; set; }
+    }
+
+    [Test]
+    public async Task Binary_values_in_nested_columns_are_copied_out_of_the_reader()
+    {
+        // Parquet.Net hands out binary values as views into a pooled buffer; they must survive the next column and row group.
+        var root = Path.Combine(Path.GetTempPath(), "datalake-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var written = Enumerable.Range(0, 3000).Select(i => new BlobRow { Id = i, Blobs = [BitConverter.GetBytes(i), [(byte)(i % 256), 7]] }).ToList();
+        await using (var file = File.Create(Path.Combine(root, "blobs.parquet")))
+            await Parquet.Serialization.ParquetSerializer.SerializeAsync(written, file, new Parquet.ParquetOptions { RowGroupSize = 1000 });
+
+        var typed = await DataLake.Open<BlobRow>(root).ReadAsync().ToListAsync();
+        var untyped = await DataLake.Open<UntypedBlobRow>(root).ReadAsync().ToListAsync();
+
+        typed.Should().BeEquivalentTo(written, o => o.WithStrictOrdering());
+        untyped.Select(r => ((IList)r.Blobs!).Cast<byte[]>().ToList()).Should().BeEquivalentTo(written.Select(r => r.Blobs), o => o.WithStrictOrdering());
+    }
+
+    public sealed class UntypedBlobRow
+    {
+        public object? Blobs { get; set; }
+    }
+
     private static string CopyFixture()
     {
         var root = Path.Combine(Path.GetTempPath(), "datalake-tests", Guid.NewGuid().ToString("N"));
