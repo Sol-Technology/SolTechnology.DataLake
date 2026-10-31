@@ -1,0 +1,25 @@
+{
+ "rows": 1,
+ "head": [
+  {
+   "data_required32": 32,
+   "data_required64": 64,
+   "data_optional_missing": null,
+   "data_optional_existing": "hello",
+   "data_repeated": [
+    10,
+    20
+   ],
+   "data_group": [
+    {
+     "nested": "nested!"
+    }
+   ],
+   "uuid": "096d06d7-e00b-4f70-ad5c-ca4da9a9630a",
+   "data_list": [
+    "element1",
+    "element2"
+   ]
+  }
+ ]
+}

@@ -1,0 +1,101 @@
+{
+ "rows": 12,
+ "head": [
+  {
+   "utf8_full_truncation": "Blart Versenwald III",
+   "binary_full_truncation": "base64:QmxhcnQgVmVyc2Vud2FsZCBJSUk=",
+   "utf8_partial_truncation": "Blart Versenwald III",
+   "binary_partial_truncation": "base64:QmxhcnQgVmVyc2Vud2FsZCBJSUk=",
+   "utf8_no_truncation": "Blart Versenwald III",
+   "binary_no_truncation": "base64:QmxhcnQgVmVyc2Vud2FsZCBJSUk="
+  },
+  {
+   "utf8_full_truncation": "Alice Johnson",
+   "binary_full_truncation": "base64:QWxpY2UgSm9obnNvbg==",
+   "utf8_partial_truncation": "Alice Johnson",
+   "binary_partial_truncation": "base64:QWxpY2UgSm9obnNvbg==",
+   "utf8_no_truncation": "Al",
+   "binary_no_truncation": "base64:QWw="
+  },
+  {
+   "utf8_full_truncation": "Bob Smith",
+   "binary_full_truncation": "base64:Qm9iIFNtaXRo",
+   "utf8_partial_truncation": "Bob Smith",
+   "binary_partial_truncation": "base64:Qm9iIFNtaXRo",
+   "utf8_no_truncation": "Bob Smith",
+   "binary_no_truncation": "base64:Qm9iIFNtaXRo"
+  },
+  {
+   "utf8_full_truncation": "Charlie Brown",
+   "binary_full_truncation": "base64:Q2hhcmxpZSBCcm93bg==",
+   "utf8_partial_truncation": "Charlie Brown",
+   "binary_partial_truncation": "base64:Q2hhcmxpZSBCcm93bg==",
+   "utf8_no_truncation": "Charlie Brown",
+   "binary_no_truncation": "base64:Q2hhcmxpZSBCcm93bg=="
+  },
+  {
+   "utf8_full_truncation": "Diana Prince",
+   "binary_full_truncation": "base64:RGlhbmEgUHJpbmNl",
+   "utf8_partial_truncation": "Diana Prince",
+   "binary_partial_truncation": "base64:RGlhbmEgUHJpbmNl",
+   "utf8_no_truncation": "Diana Prince",
+   "binary_no_truncation": "base64:RGlhbmEgUHJpbmNl"
+  },
+  {
+   "utf8_full_truncation": "Edward Norton",
+   "binary_full_truncation": "base64:RWR3YXJkIE5vcnRvbg==",
+   "utf8_partial_truncation": "Edward Norton",
+   "binary_partial_truncation": "base64:RWR3YXJkIE5vcnRvbg==",
+   "utf8_no_truncation": "Edward Norton",
+   "binary_no_truncation": "base64:RWR3YXJkIE5vcnRvbg=="
+  },
+  {
+   "utf8_full_truncation": "Fiona Apple",
+   "binary_full_truncation": "base64:RmlvbmEgQXBwbGU=",
+   "utf8_partial_truncation": "Fiona Apple",
+   "binary_partial_truncation": "base64:RmlvbmEgQXBwbGU=",
+   "utf8_no_truncation": "Fiona Apple",
+   "binary_no_truncation": "base64:RmlvbmEgQXBwbGU="
+  },
+  {
+   "utf8_full_truncation": "George Lucas",
+   "binary_full_truncation": "base64:R2VvcmdlIEx1Y2Fz",
+   "utf8_partial_truncation": "George Lucas",
+   "binary_partial_truncation": "base64:R2VvcmdlIEx1Y2Fz",
+   "utf8_no_truncation": "George Lucas",
+   "binary_no_truncation": "base64:R2VvcmdlIEx1Y2Fz"
+  },
+  {
+   "utf8_full_truncation": "Helen Keller",
+   "binary_full_truncation": "base64:SGVsZW4gS2VsbGVy",
+   "utf8_partial_truncation": "Helen Keller",
+   "binary_partial_truncation": "base64:SGVsZW4gS2VsbGVy",
+   "utf8_no_truncation": "Helen Keller",
+   "binary_no_truncation": "base64:SGVsZW4gS2VsbGVy"
+  },
+  {
+   "utf8_full_truncation": "Ivan Drago",
+   "binary_full_truncation": "base64:SXZhbiBEcmFnbw==",
+   "utf8_partial_truncation": "Ivan Drago",
+   "binary_partial_truncation": "base64:SXZhbiBEcmFnbw==",
+   "utf8_no_truncation": "Ivan Drago",
+   "binary_no_truncation": "base64:SXZhbiBEcmFnbw=="
+  },
+  {
+   "utf8_full_truncation": "Julia Roberts",
+   "binary_full_truncation": "base64:SnVsaWEgUm9iZXJ0cw==",
+   "utf8_partial_truncation": "Julia Roberts",
+   "binary_partial_truncation": "base64:SnVsaWEgUm9iZXJ0cw==",
+   "utf8_no_truncation": "Julia Roberts",
+   "binary_no_truncation": "base64:SnVsaWEgUm9iZXJ0cw=="
+  },
+  {
+   "utf8_full_truncation": "Kevin Bacon",
+   "binary_full_truncation": "base64:S2V2aW4gQmFjb24=",
+   "utf8_partial_truncation": "🚀Kevin Bacon",
+   "binary_partial_truncation": "base64://8BAg==",
+   "utf8_no_truncation": "Ke",
+   "binary_no_truncation": "base64:S2U="
+  }
+ ]
+}

@@ -1,0 +1,35 @@
+{
+ "rows": 3,
+ "head": [
+  {
+   "int64_list": [
+    1,
+    2,
+    3
+   ],
+   "utf8_list": [
+    "abc",
+    "efg",
+    "hij"
+   ]
+  },
+  {
+   "int64_list": [
+    null,
+    1
+   ],
+   "utf8_list": null
+  },
+  {
+   "int64_list": [
+    4
+   ],
+   "utf8_list": [
+    "efg",
+    null,
+    "hij",
+    "xyz"
+   ]
+  }
+ ]
+}

@@ -1,0 +1,3 @@
+{
+ "error": "ArrowInvalid: Error creating dataset. Could not read schema from '/work/data/parquet-testing/incorrect_map_schema.parquet'. Is this a 'parquet' file?: Map keys must be annotated as required."
+}

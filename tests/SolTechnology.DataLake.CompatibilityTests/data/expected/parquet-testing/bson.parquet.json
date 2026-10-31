@@ -1,0 +1,14 @@
+{
+ "rows": 3,
+ "head": [
+  {
+   "bson_field": "base64:DAAAABBhAAEAAAAA"
+  },
+  {
+   "bson_field": "base64:DwAAABBhAAEAAAAKYgAA"
+  },
+  {
+   "bson_field": null
+  }
+ ]
+}

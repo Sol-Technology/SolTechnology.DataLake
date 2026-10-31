@@ -23,6 +23,7 @@ jobs:
     - name: Unit tests
       run: |
         dotnet test tests/SolTechnology.DataLake.UnitTests -c Release --no-build
+        dotnet test tests/SolTechnology.DataLake.CompatibilityTests -c Release --no-build
         dotnet test spikes/IcebergSpike.Tests -c Release --no-build
 
   integration:

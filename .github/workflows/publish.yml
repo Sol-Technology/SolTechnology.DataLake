@@ -35,6 +35,7 @@ jobs:
       run: |
         dotnet build SolTechnology.DataLake.slnx -c Release
         dotnet test tests/SolTechnology.DataLake.UnitTests -c Release --no-build
+        dotnet test tests/SolTechnology.DataLake.CompatibilityTests -c Release --no-build
         dotnet test tests/SolTechnology.DataLake.IntegrationTests -c Release --no-build
 
     - name: Pack

@@ -1,0 +1,29 @@
+{
+ "rows": 4,
+ "head": [
+  {
+   "tag": "normal",
+   "ids": [
+    1,
+    2,
+    3
+   ]
+  },
+  {
+   "tag": "empty",
+   "ids": []
+  },
+  {
+   "tag": "normal",
+   "ids": [
+    4,
+    5,
+    6
+   ]
+  },
+  {
+   "tag": "null",
+   "ids": null
+  }
+ ]
+}

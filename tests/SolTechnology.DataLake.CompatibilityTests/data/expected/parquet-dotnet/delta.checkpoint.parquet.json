@@ -1,0 +1,485 @@
+{
+ "rows": 41,
+ "head": [
+  {
+   "txn": null,
+   "add": {
+    "path": "MediaTypeId=1/part-00000-5ac684fb-5248-4f07-8288-b0cc47cc9b97.c000.snappy.parquet",
+    "partitionValues": [
+     [
+      "MediaTypeId",
+      "1"
+     ]
+    ],
+    "size": 5671,
+    "modificationTime": 1733241570776,
+    "dataChange": false,
+    "tags": null,
+    "deletionVector": null,
+    "stats": "{\"numRecords\":71,\"minValues\":{\"TrackId\":\"1102\",\"Name\":\"14 Years\",\"AlbumId\":\"73\",\"GenreId\":\"2\",\"Composer\":\"Billie Joe Armstrong, Mike Dirnt\",\"Milliseconds\":\"120528\",\"Bytes\":\"10019269\",\"UnitPrice\":\"0.99\"},\"maxValues\":{\"TrackId\":\"1200\",\"Name\":\"You Could Be Mine\",\"AlbumId\":\"93\",\"GenreId\":\"7\",\"Composer\":\"W. Axl Rose\",\"Milliseconds\":\"89547\",\"Bytes\":\"9931950\",\"UnitPrice\":\"0.99\"},\"nullCount\":{\"TrackId\":0,\"Name\":0,\"AlbumId\":0,\"GenreId\":0,\"Composer\":3,\"Milliseconds\":0,\"Bytes\":0,\"UnitPrice\":0}}",
+    "partitionValues_parsed": {
+     "MediaTypeId": "1"
+    }
+   },
+   "remove": null,
+   "metaData": null,
+   "protocol": null
+  },
+  {
+   "txn": null,
+   "add": {
+    "path": "MediaTypeId=1/part-00000-1f91e2cb-220b-45d5-9604-2206807248b3.c000.snappy.parquet",
+    "partitionValues": [
+     [
+      "MediaTypeId",
+      "1"
+     ]
+    ],
+    "size": 6313,
+    "modificationTime": 1733241610878,
+    "dataChange": false,
+    "tags": null,
+    "deletionVector": null,
+    "stats": "{\"numRecords\":100,\"minValues\":{\"TrackId\":\"2302\",\"Name\":\"A Sua\",\"AlbumId\":\"187\",\"GenreId\":\"1\",\"Composer\":\"Anthony Kiedis, Flea, John Frusc\",\"Milliseconds\":\"121652\",\"Bytes\":\"10235611\",\"UnitPrice\":\"0.99\"},\"maxValues\":{\"TrackId\":\"2401\",\"Name\":\"Zither\",\"AlbumId\":\"195\",\"GenreId\":\"4\",\"Composer\":\"Rodolfo\",\"Milliseconds\":\"71941\",\"Bytes\":\"9950320\",\"UnitPrice\":\"0.99\"},\"nullCount\":{\"TrackId\":0,\"Name\":0,\"AlbumId\":0,\"GenreId\":0,\"Composer\":14,\"Milliseconds\":0,\"Bytes\":0,\"UnitPrice\":0}}",
+    "partitionValues_parsed": {
+     "MediaTypeId": "1"
+    }
+   },
+   "remove": null,
+   "metaData": null,
+   "protocol": null
+  },
+  {
+   "txn": null,
+   "add": {
+    "path": "MediaTypeId=1/part-00000-cacde2c4-3612-42c5-a5c2-5dd68586e956.c000.snappy.parquet",
+    "partitionValues": [
+     [
+      "MediaTypeId",
+      "1"
+     ]
+    ],
+    "size": 6722,
+    "modificationTime": 1733241616961,
+    "dataChange": false,
+    "tags": null,
+    "deletionVector": null,
+    "stats": "{\"numRecords\":100,\"minValues\":{\"TrackId\":\"2502\",\"Name\":\"(White Man) In Hammersmith Palai\",\"AlbumId\":\"202\",\"GenreId\":\"1\",\"Composer\":\"A.Isbell/A.Jones/O.Redding\",\"Milliseconds\":\"118726\",\"Bytes\":\"10115556\",\"UnitPrice\":\"0.99\"},\"maxValues\":{\"TrackId\":\"2601\",\"Name\":\"[Untitled]\",\"AlbumId\":\"211\",\"GenreId\":\"6\",\"Composer\":\"Willie Dixon\",\"Milliseconds\":\"96914\",\"Bytes\":\"9768399\",\"UnitPrice\":\"0.99\"},\"nullCount\":{\"TrackId\":0,\"Name\":0,\"AlbumId\":0,\"GenreId\":0,\"Composer\":0,\"Milliseconds\":0,\"Bytes\":0,\"UnitPrice\":0}}",
+    "partitionValues_parsed": {
+     "MediaTypeId": "1"
+    }
+   },
+   "remove": null,
+   "metaData": null,
+   "protocol": null
+  },
+  {
+   "txn": null,
+   "add": {
+    "path": "MediaTypeId=1/part-00000-2ed97ba3-2cfa-43c3-a29e-1b0670126abe.c000.snappy.parquet",
+    "partitionValues": [
+     [
+      "MediaTypeId",
+      "1"
+     ]
+    ],
+    "size": 5699,
+    "modificationTime": 1733241629057,
+    "dataChange": false,
+    "tags": null,
+    "deletionVector": null,
+    "stats": "{\"numRecords\":76,\"minValues\":{\"TrackId\":\"2926\",\"Name\":\"A Man And A Woman\",\"AlbumId\":\"232\",\"GenreId\":\"1\",\"Composer\":\"Adam Clayton, Bono, Larry Mullen\",\"Milliseconds\":\"153965\",\"Bytes\":\"10112863\",\"UnitPrice\":\"0.99\"},\"maxValues\":{\"TrackId\":\"3001\",\"Name\":\"Zoo Station\",\"AlbumId\":\"237\",\"GenreId\":\"1\",\"Composer\":\"U2\",\"Milliseconds\":\"43232\",\"Bytes\":\"9909484\",\"UnitPrice\":\"0.99\"},\"nullCount\":{\"TrackId\":0,\"Name\":0,\"AlbumId\":0,\"GenreId\":0,\"Composer\":0,\"Milliseconds\":0,\"Bytes\":0,\"UnitPrice\":0}}",
+    "partitionValues_parsed": {
+     "MediaTypeId": "1"
+    }
+   },
+   "remove": null,
+   "metaData": null,
+   "protocol": null
+  },
+  {
+   "txn": null,
+   "add": {
+    "path": "MediaTypeId=1/part-00000-75f239cd-e0b7-4737-bf6b-14adadcd601a.c000.snappy.parquet",
+    "partitionValues": [
+     [
+      "MediaTypeId",
+      "1"
+     ]
+    ],
+    "size": 6646,
+    "modificationTime": 1733241587686,
+    "dataChange": false,
+    "tags": null,
+    "deletionVector": null,
+    "stats": "{\"numRecords\":100,\"minValues\":{\"TrackId\":\"1602\",\"Name\":\"1º De Julho\",\"AlbumId\":\"129\",\"GenreId\":\"1\",\"Composer\":\"Dado Villa-Lobos\",\"Milliseconds\":\"126641\",\"Bytes\":\"10130685\",\"UnitPrice\":\"0.99\"},\"maxValues\":{\"TrackId\":\"1701\",\"Name\":\"Your Time Is Gonna Come\",\"AlbumId\":\"140\",\"GenreId\":\"7\",\"Composer\":\"Willie Dixon\",\"Milliseconds\":\"863895\",\"Bytes\":\"9963914\",\"UnitPrice\":\"0.99\"},\"nullCount\":{\"TrackId\":0,\"Name\":0,\"AlbumId\":0,\"GenreId\":0,\"Composer\":0,\"Milliseconds\":0,\"Bytes\":0,\"UnitPrice\":0}}",
+    "partitionValues_parsed": {
+     "MediaTypeId": "1"
+    }
+   },
+   "remove": null,
+   "metaData": null,
+   "protocol": null
+  },
+  {
+   "txn": null,
+   "add": {
+    "path": "MediaTypeId=2/part-00000-aaf14d7a-1702-4efe-b18c-a00e04b54b9c.c000.snappy.parquet",
+    "partitionValues": [
+     [
+      "MediaTypeId",
+      "2"
+     ]
+    ],
+    "size": 2750,
+    "modificationTime": 1733241574366,
+    "dataChange": false,
+    "tags": null,
+    "deletionVector": null,
+    "stats": "{\"numRecords\":10,\"minValues\":{\"TrackId\":\"1202\",\"Name\":\"Brighter Than a Thousand Suns\",\"AlbumId\":\"94\",\"GenreId\":\"1\",\"Milliseconds\":\"307593\",\"Bytes\":\"5172144\",\"UnitPrice\":\"0.99\"},\"maxValues\":{\"TrackId\":\"1211\",\"Name\":\"These Colours Don't Run\",\"AlbumId\":\"94\",\"GenreId\":\"1\",\"Milliseconds\":\"564893\",\"Bytes\":\"9367328\",\"UnitPrice\":\"0.99\"},\"nullCount\":{\"TrackId\":0,\"Name\":0,\"AlbumId\":0,\"GenreId\":0,\"Composer\":10,\"Milliseconds\":0,\"Bytes\":0,\"UnitPrice\":0}}",
+    "partitionValues_parsed": {
+     "MediaTypeId": "2"
+    }
+   },
+   "remove": null,
+   "metaData": null,
+   "protocol": null
+  },
+  {
+   "txn": null,
+   "add": {
+    "path": "MediaTypeId=1/part-00000-71dc1bbb-3999-471c-8b53-c84c59e95378.c000.snappy.parquet",
+    "partitionValues": [
+     [
+      "MediaTypeId",
+      "1"
+     ]
+    ],
+    "size": 6765,
+    "modificationTime": 1733241596974,
+    "dataChange": false,
+    "tags": null,
+    "deletionVector": null,
+    "stats": "{\"numRecords\":100,\"minValues\":{\"TrackId\":\"1902\",\"Name\":\"(We Are) The Road Crew\",\"AlbumId\":\"157\",\"GenreId\":\"1\",\"Composer\":\"A. Jamal\",\"Milliseconds\":\"115591\",\"Bytes\":\"10218398\",\"UnitPrice\":\"0.99\"},\"maxValues\":{\"TrackId\":\"2001\",\"Name\":\"É Fogo\",\"AlbumId\":\"163\",\"GenreId\":\"7\",\"Composer\":\"Wagner Tiso, Milton Nascimento\",\"Milliseconds\":\"98115\",\"Bytes\":\"9912387\",\"UnitPrice\":\"0.99\"},\"nullCount\":{\"TrackId\":0,\"Name\":0,\"AlbumId\":0,\"GenreId\":0,\"Composer\":0,\"Milliseconds\":0,\"Bytes\":0,\"UnitPrice\":0}}",
+    "partitionValues_parsed": {
+     "MediaTypeId": "1"
+    }
+   },
+   "remove": null,
+   "metaData": null,
+   "protocol": null
+  },
+  {
+   "txn": null,
+   "add": {
+    "path": "MediaTypeId=1/part-00000-e1b31617-1989-4e31-bf90-905bc9e70312.c000.snappy.parquet",
+    "partitionValues": [
+     [
+      "MediaTypeId",
+      "1"
+     ]
+    ],
+    "size": 6627,
+    "modificationTime": 1733241614047,
+    "dataChange": false,
+    "tags": null,
+    "deletionVector": null,
+    "stats": "{\"numRecords\":100,\"minValues\":{\"TrackId\":\"2402\",\"Name\":\"1979\",\"AlbumId\":\"141\",\"GenreId\":\"1\",\"Composer\":\"Albert King\",\"Milliseconds\":\"1070027\",\"Bytes\":\"10034711\",\"UnitPrice\":\"0.99\"},\"maxValues\":{\"TrackId\":\"2501\",\"Name\":\"É Uma Partida De Futebol\",\"AlbumId\":\"202\",\"GenreId\":\"4\",\"Composer\":\"W.Correa\",\"Milliseconds\":\"94720\",\"Bytes\":\"9985701\",\"UnitPrice\":\"0.99\"},\"nullCount\":{\"TrackId\":0,\"Name\":0,\"AlbumId\":0,\"GenreId\":0,\"Composer\":6,\"Milliseconds\":0,\"Bytes\":0,\"UnitPrice\":0}}",
+    "partitionValues_parsed": {
+     "MediaTypeId": "1"
+    }
+   },
+   "remove": null,
+   "metaData": null,
+   "protocol": null
+  },
+  {
+   "txn": null,
+   "add": {
+    "path": "MediaTypeId=2/part-00000-8162ee76-7683-4f56-8341-25d1bf8c0255.c000.snappy.parquet",
+    "partitionValues": [
+     [
+      "MediaTypeId",
+      "2"
+     ]
+    ],
+    "size": 2451,
+    "modificationTime": 1733241584273,
+    "dataChange": false,
+    "tags": null,
+    "deletionVector": null,
+    "stats": "{\"numRecords\":4,\"minValues\":{\"TrackId\":\"1502\",\"Name\":\"Circles\",\"AlbumId\":\"121\",\"GenreId\":\"1\",\"Composer\":\"J. Satriani\",\"Milliseconds\":\"102630\",\"Bytes\":\"1851753\",\"UnitPrice\":\"0.99\"},\"maxValues\":{\"TrackId\":\"1505\",\"Name\":\"Midnight\",\"AlbumId\":\"121\",\"GenreId\":\"1\",\"Composer\":\"J. Satriani\",\"Milliseconds\":\"337570\",\"Bytes\":\"5595557\",\"UnitPrice\":\"0.99\"},\"nullCount\":{\"TrackId\":0,\"Name\":0,\"AlbumId\":0,\"GenreId\":0,\"Composer\":1,\"Milliseconds\":0,\"Bytes\":0,\"UnitPrice\":0}}",
+    "partitionValues_parsed": {
+     "MediaTypeId": "2"
+    }
+   },
+   "remove": null,
+   "metaData": null,
+   "protocol": null
+  },
+  {
+   "txn": null,
+   "add": {
+    "path": "MediaTypeId=1/part-00000-78a23915-a13b-451c-98ae-892aab807d8c.c000.snappy.parquet",
+    "partitionValues": [
+     [
+      "MediaTypeId",
+      "1"
+     ]
+    ],
+    "size": 6594,
+    "modificationTime": 1733241631993,
+    "dataChange": false,
+    "tags": null,
+    "deletionVector": null,
+    "stats": "{\"numRecords\":100,\"minValues\":{\"TrackId\":\"3002\",\"Name\":\"\\\"40\\\"\",\"AlbumId\":\"237\",\"GenreId\":\"1\",\"Composer\":\"Alex Van Halen/David Lee Roth/Ed\",\"Milliseconds\":\"100153\",\"Bytes\":\"10014683\",\"UnitPrice\":\"0.99\"},\"maxValues\":{\"TrackId\":\"3101\",\"Name\":\"Zooropa\",\"AlbumId\":\"245\",\"GenreId\":\"8\",\"Composer\":\"Van Halen\",\"Milliseconds\":\"86987\",\"Bytes\":\"9785480\",\"UnitPrice\":\"0.99\"},\"nullCount\":{\"TrackId\":0,\"Name\":0,\"AlbumId\":0,\"GenreId\":0,\"Composer\":14,\"Milliseconds\":0,\"Bytes\":0,\"UnitPrice\":0}}",
+    "partitionValues_parsed": {
+     "MediaTypeId": "1"
+    }
+   },
+   "remove": null,
+   "metaData": null,
+   "protocol": null
+  },
+  {
+   "txn": null,
+   "add": {
+    "path": "MediaTypeId=1/part-00000-c40e51b5-6d54-4488-8d56-0de97fe2b2c6.c000.snappy.parquet",
+    "partitionValues": [
+     [
+      "MediaTypeId",
+      "1"
+     ]
+    ],
+    "size": 6806,
+    "modificationTime": 1733241580743,
+    "dataChange": false,
+    "tags": null,
+    "deletionVector": null,
+    "stats": "{\"numRecords\":94,\"minValues\":{\"TrackId\":\"1402\",\"Name\":\"2 A.M.\",\"AlbumId\":\"113\",\"GenreId\":\"1\",\"Composer\":\"Addie William Jones/Nat Jones\",\"Milliseconds\":\"112352\",\"Bytes\":\"10334529\",\"UnitPrice\":\"0.99\"},\"maxValues\":{\"TrackId\":\"1495\",\"Name\":\"When You Gonna Learn (Digeridoo)\",\"AlbumId\":\"120\",\"GenreId\":\"4\",\"Composer\":\"Toby Smith/Wallis Buchanan\",\"Milliseconds\":\"616829\",\"Bytes\":\"9848207\",\"UnitPrice\":\"0.99\"},\"nullCount\":{\"TrackId\":0,\"Name\":0,\"AlbumId\":0,\"GenreId\":0,\"Composer\":0,\"Milliseconds\":0,\"Bytes\":0,\"UnitPrice\":0}}",
+    "partitionValues_parsed": {
+     "MediaTypeId": "1"
+    }
+   },
+   "remove": null,
+   "metaData": null,
+   "protocol": null
+  },
+  {
+   "txn": null,
+   "add": {
+    "path": "MediaTypeId=1/part-00000-77d3839f-cac7-404e-a7f6-141e01c54df8.c000.snappy.parquet",
+    "partitionValues": [
+     [
+      "MediaTypeId",
+      "1"
+     ]
+    ],
+    "size": 6412,
+    "modificationTime": 1733241619919,
+    "dataChange": false,
+    "tags": null,
+    "deletionVector": null,
+    "stats": "{\"numRecords\":100,\"minValues\":{\"TrackId\":\"2602\",\"Name\":\"19th Nervous Breakdown\",\"AlbumId\":\"211\",\"GenreId\":\"1\",\"Composer\":\"Billy Duffy/Bob Rock/Ian Astbury\",\"Milliseconds\":\"132022\",\"Bytes\":\"10019861\",\"UnitPrice\":\"0.99\"},\"maxValues\":{\"TrackId\":\"2701\",\"Name\":\"You Got Me Rocking\",\"AlbumId\":\"218\",\"GenreId\":\"4\",\"Composer\":\"Willie Dixon, C. Burnett\",\"Milliseconds\":\"701831\",\"Bytes\":\"9981359\",\"UnitPrice\":\"0.99\"},\"nullCount\":{\"TrackId\":0,\"Name\":0,\"AlbumId\":0,\"GenreId\":0,\"Composer\":18,\"Milliseconds\":0,\"Bytes\":0,\"UnitPrice\":0}}",
+    "partitionValues_parsed": {
+     "MediaTypeId": "1"
+    }
+   },
+   "remove": null,
+   "metaData": null,
+   "protocol": null
+  },
+  {
+   "txn": null,
+   "add": {
+    "path": "MediaTypeId=1/part-00000-cdbd99ea-cf48-42fc-8d28-b643d6fed6f1.c000.snappy.parquet",
+    "partitionValues": [
+     [
+      "MediaTypeId",
+      "1"
+     ]
+    ],
+    "size": 6810,
+    "modificationTime": 1733241535167,
+    "dataChange": false,
+    "tags": null,
+    "deletionVector": null,
+    "stats": "{\"numRecords\":100,\"minValues\":{\"TrackId\":\"202\",\"Name\":\"A Banda\",\"AlbumId\":\"20\",\"GenreId\":\"6\",\"Composer\":\"Amos Blakemore/Buddy Guy\",\"Milliseconds\":\"105586\",\"Bytes\":\"10003747\",\"UnitPrice\":\"0.99\"},\"maxValues\":{\"TrackId\":\"301\",\"Name\":\"Vida Boa\",\"AlbumId\":\"27\",\"GenreId\":\"8\",\"Composer\":\"Willie Dixon\",\"Milliseconds\":\"99369\",\"Bytes\":\"9854062\",\"UnitPrice\":\"0.99\"},\"nullCount\":{\"TrackId\":0,\"Name\":0,\"AlbumId\":0,\"GenreId\":0,\"Composer\":36,\"Milliseconds\":0,\"Bytes\":0,\"UnitPrice\":0}}",
+    "partitionValues_parsed": {
+     "MediaTypeId": "1"
+    }
+   },
+   "remove": null,
+   "metaData": null,
+   "protocol": null
+  },
+  {
+   "txn": null,
+   "add": {
+    "path": "MediaTypeId=1/part-00000-8a2e78a9-545d-4f9e-a7fe-c9191d600d70.c000.snappy.parquet",
+    "partitionValues": [
+     [
+      "MediaTypeId",
+      "1"
+     ]
+    ],
+    "size": 6350,
+    "modificationTime": 1733241517883,
+    "dataChange": false,
+    "tags": null,
+    "deletionVector": null,
+    "stats": "{\"numRecords\":96,\"minValues\":{\"TrackId\":\"10\",\"Name\":\"All I Really Want\",\"AlbumId\":\"1\",\"GenreId\":\"1\",\"Composer\":\"AC/DC\",\"Milliseconds\":\"126511\",\"Bytes\":\"10056995\",\"UnitPrice\":\"0.99\"},\"maxValues\":{\"TrackId\":\"99\",\"Name\":\"Your Time Has Come\",\"AlbumId\":\"9\",\"GenreId\":\"4\",\"Composer\":\"Steven Tyler, Tom Hamilton\",\"Milliseconds\":\"491885\",\"Bytes\":\"9989331\",\"UnitPrice\":\"0.99\"},\"nullCount\":{\"TrackId\":0,\"Name\":0,\"AlbumId\":0,\"GenreId\":0,\"Composer\":14,\"Milliseconds\":0,\"Bytes\":0,\"UnitPrice\":0}}",
+    "partitionValues_parsed": {
+     "MediaTypeId": "1"
+    }
+   },
+   "remove": null,
+   "metaData": null,
+   "protocol": null
+  },
+  {
+   "txn": null,
+   "add": {
+    "path": "MediaTypeId=1/part-00000-6a2f97a3-4645-444e-9735-35ce6bb38992.c000.snappy.parquet",
+    "partitionValues": [
+     [
+      "MediaTypeId",
+      "1"
+     ]
+    ],
+    "size": 6472,
+    "modificationTime": 1733241607922,
+    "dataChange": false,
+    "tags": null,
+    "deletionVector": null,
+    "stats": "{\"numRecords\":100,\"minValues\":{\"TrackId\":\"2202\",\"Name\":\"100% HardCore\",\"AlbumId\":\"141\",\"GenreId\":\"1\",\"Composer\":\"Bill Berry-Peter Buck-Mike Mills\",\"Milliseconds\":\"100858\",\"Bytes\":\"10077337\",\"UnitPrice\":\"0.99\"},\"maxValues\":{\"TrackId\":\"2301\",\"Name\":\"ZeroVinteUm\",\"AlbumId\":\"189\",\"GenreId\":\"8\",\"Composer\":\"Wright, Waters\",\"Milliseconds\":\"546063\",\"Bytes\":\"9950311\",\"UnitPrice\":\"0.99\"},\"nullCount\":{\"TrackId\":0,\"Name\":0,\"AlbumId\":0,\"GenreId\":0,\"Composer\":29,\"Milliseconds\":0,\"Bytes\":0,\"UnitPrice\":0}}",
+    "partitionValues_parsed": {
+     "MediaTypeId": "1"
+    }
+   },
+   "remove": null,
+   "metaData": null,
+   "protocol": null
+  },
+  {
+   "txn": null,
+   "add": {
+    "path": "MediaTypeId=1/part-00000-ab9a12cf-d451-4088-8c4d-a5aa6ecd1089.c000.snappy.parquet",
+    "partitionValues": [
+     [
+      "MediaTypeId",
+      "1"
+     ]
+    ],
+    "size": 6693,
+    "modificationTime": 1733241544216,
+    "dataChange": false,
+    "tags": null,
+    "deletionVector": null,
+    "stats": "{\"numRecords\":100,\"minValues\":{\"TrackId\":\"402\",\"Name\":\"A Kind Of Magic\",\"AlbumId\":\"34\",\"GenreId\":\"1\",\"Composer\":\"A.Bouchard/J.Bouchard/S.Pearlman\",\"Milliseconds\":\"134164\",\"Bytes\":\"10266007\",\"UnitPrice\":\"0.99\"},\"maxValues\":{\"TrackId\":\"501\",\"Name\":\"Who Wants To Live Forever\",\"AlbumId\":\"41\",\"GenreId\":\"7\",\"Composer\":\"Vários\",\"Milliseconds\":\"90331\",\"Bytes\":\"9943129\",\"UnitPrice\":\"0.99\"},\"nullCount\":{\"TrackId\":0,\"Name\":0,\"AlbumId\":0,\"GenreId\":0,\"Composer\":12,\"Milliseconds\":0,\"Bytes\":0,\"UnitPrice\":0}}",
+    "partitionValues_parsed": {
+     "MediaTypeId": "1"
+    }
+   },
+   "remove": null,
+   "metaData": null,
+   "protocol": null
+  },
+  {
+   "txn": null,
+   "add": {
+    "path": "MediaTypeId=2/part-00000-4efaf412-24cb-4551-8287-30fb07ed07a4.c000.snappy.parquet",
+    "partitionValues": [
+     [
+      "MediaTypeId",
+      "2"
+     ]
+    ],
+    "size": 3324,
+    "modificationTime": 1733241570792,
+    "dataChange": false,
+    "tags": null,
+    "deletionVector": null,
+    "stats": "{\"numRecords\":29,\"minValues\":{\"TrackId\":\"1146\",\"Name\":\"Anything Goes\",\"AlbumId\":\"90\",\"GenreId\":\"1\",\"Milliseconds\":\"143637\",\"Bytes\":\"10201342\",\"UnitPrice\":\"0.99\"},\"maxValues\":{\"TrackId\":\"1201\",\"Name\":\"You're Crazy\",\"AlbumId\":\"94\",\"GenreId\":\"1\",\"Milliseconds\":\"616511\",\"Bytes\":\"8923566\",\"UnitPrice\":\"0.99\"},\"nullCount\":{\"TrackId\":0,\"Name\":0,\"AlbumId\":0,\"GenreId\":0,\"Composer\":29,\"Milliseconds\":0,\"Bytes\":0,\"UnitPrice\":0}}",
+    "partitionValues_parsed": {
+     "MediaTypeId": "2"
+    }
+   },
+   "remove": null,
+   "metaData": null,
+   "protocol": null
+  },
+  {
+   "txn": null,
+   "add": {
+    "path": "MediaTypeId=2/part-00000-e604fd69-b9df-401c-b9a7-64385c98cd79.c000.snappy.parquet",
+    "partitionValues": [
+     [
+      "MediaTypeId",
+      "2"
+     ]
+    ],
+    "size": 2773,
+    "modificationTime": 1733241600048,
+    "dataChange": false,
+    "tags": null,
+    "deletionVector": null,
+    "stats": "{\"numRecords\":6,\"minValues\":{\"TrackId\":\"2093\",\"Name\":\"Bark at the Moon\",\"AlbumId\":\"170\",\"GenreId\":\"1\",\"Composer\":\"B. Daisley, O. Osbourne & R. Rho\",\"Milliseconds\":\"251586\",\"Bytes\":\"4302390\",\"UnitPrice\":\"0.99\"},\"maxValues\":{\"TrackId\":\"2098\",\"Name\":\"No More Tears\",\"AlbumId\":\"173\",\"GenreId\":\"1\",\"Composer\":\"O. Osbourne\",\"Milliseconds\":\"444358\",\"Bytes\":\"7362964\",\"UnitPrice\":\"0.99\"},\"nullCount\":{\"TrackId\":0,\"Name\":0,\"AlbumId\":0,\"GenreId\":0,\"Composer\":0,\"Milliseconds\":0,\"Bytes\":0,\"UnitPrice\":0}}",
+    "partitionValues_parsed": {
+     "MediaTypeId": "2"
+    }
+   },
+   "remove": null,
+   "metaData": null,
+   "protocol": null
+  },
+  {
+   "txn": null,
+   "add": {
+    "path": "MediaTypeId=1/part-00000-e188ae70-842c-47c7-b0ab-02834a179371.c000.snappy.parquet",
+    "partitionValues": [
+     [
+      "MediaTypeId",
+      "1"
+     ]
+    ],
+    "size": 7654,
+    "modificationTime": 1733241548265,
+    "dataChange": false,
+    "tags": null,
+    "deletionVector": null,
+    "stats": "{\"numRecords\":100,\"minValues\":{\"TrackId\":\"502\",\"Name\":\"(Da Le) Yaleo\",\"AlbumId\":\"23\",\"GenreId\":\"1\",\"Composer\":\"Adalto Magalha/Lourenco\",\"Milliseconds\":\"125152\",\"Bytes\":\"10251428\",\"UnitPrice\":\"0.99\"},\"maxValues\":{\"TrackId\":\"601\",\"Name\":\"You Fool No One\",\"AlbumId\":\"48\",\"GenreId\":\"7\",\"Composer\":\"W. Jean, J. Duplessis, Carlos Sa�\",\"Milliseconds\":\"807392\",\"Bytes\":\"9999506\",\"UnitPrice\":\"0.99\"},\"nullCount\":{\"TrackId\":0,\"Name\":0,\"AlbumId\":0,\"GenreId\":0,\"Composer\":36,\"Milliseconds\":0,\"Bytes\":0,\"UnitPrice\":0}}",
+    "partitionValues_parsed": {
+     "MediaTypeId": "1"
+    }
+   },
+   "remove": null,
+   "metaData": null,
+   "protocol": null
+  },
+  {
+   "txn": null,
+   "add": {
+    "path": "MediaTypeId=1/part-00000-fb0174e8-f516-447f-9529-00b9f1875e1e.c000.snappy.parquet",
+    "partitionValues": [
+     [
+      "MediaTypeId",
+      "1"
+     ]
+    ],
+    "size": 6311,
+    "modificationTime": 1733241623022,
+    "dataChange": false,
+    "tags": null,
+    "deletionVector": null,
+    "stats": "{\"numRecords\":100,\"minValues\":{\"TrackId\":\"2702\",\"Name\":\"32 Dentes\",\"AlbumId\":\"218\",\"GenreId\":\"1\",\"Composer\":\"Carlos Imperial/Edardo Araújo\",\"Milliseconds\":\"104986\",\"Bytes\":\"10005675\",\"UnitPrice\":\"0.99\"},\"maxValues\":{\"TrackId\":\"2801\",\"Name\":\"You Better You Bet\",\"AlbumId\":\"224\",\"GenreId\":\"7\",\"Composer\":\"Titãs\",\"Milliseconds\":\"90148\",\"Bytes\":\"9900469\",\"UnitPrice\":\"0.99\"},\"nullCount\":{\"TrackId\":0,\"Name\":0,\"AlbumId\":0,\"GenreId\":0,\"Composer\":15,\"Milliseconds\":0,\"Bytes\":0,\"UnitPrice\":0}}",
+    "partitionValues_parsed": {
+     "MediaTypeId": "1"
+    }
+   },
+   "remove": null,
+   "metaData": null,
+   "protocol": null
+  }
+ ]
+}

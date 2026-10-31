@@ -1,0 +1,165 @@
+{
+ "rows": 50,
+ "head": [
+  {
+   "float_ieee754": -2.0,
+   "float_typedef": -2.0,
+   "double_ieee754": -2.0,
+   "double_typedef": -2.0,
+   "float16_ieee754": -2.0,
+   "float16_typedef": -2.0
+  },
+  {
+   "float_ieee754": -1.0,
+   "float_typedef": -1.0,
+   "double_ieee754": -1.0,
+   "double_typedef": -1.0,
+   "float16_ieee754": -1.0,
+   "float16_typedef": -1.0
+  },
+  {
+   "float_ieee754": -0.0,
+   "float_typedef": -0.0,
+   "double_ieee754": -0.0,
+   "double_typedef": -0.0,
+   "float16_ieee754": -0.0,
+   "float16_typedef": -0.0
+  },
+  {
+   "float_ieee754": 0.0,
+   "float_typedef": 0.0,
+   "double_ieee754": 0.0,
+   "double_typedef": 0.0,
+   "float16_ieee754": 0.0,
+   "float16_typedef": 0.0
+  },
+  {
+   "float_ieee754": 0.5,
+   "float_typedef": 0.5,
+   "double_ieee754": 0.5,
+   "double_typedef": 0.5,
+   "float16_ieee754": 0.5,
+   "float16_typedef": 0.5
+  },
+  {
+   "float_ieee754": 1.0,
+   "float_typedef": 1.0,
+   "double_ieee754": 1.0,
+   "double_typedef": 1.0,
+   "float16_ieee754": 1.0,
+   "float16_typedef": 1.0
+  },
+  {
+   "float_ieee754": 2.0,
+   "float_typedef": 2.0,
+   "double_ieee754": 2.0,
+   "double_typedef": 2.0,
+   "float16_ieee754": 2.0,
+   "float16_typedef": 2.0
+  },
+  {
+   "float_ieee754": 3.0,
+   "float_typedef": 3.0,
+   "double_ieee754": 3.0,
+   "double_typedef": 3.0,
+   "float16_ieee754": 3.0,
+   "float16_typedef": 3.0
+  },
+  {
+   "float_ieee754": 4.0,
+   "float_typedef": 4.0,
+   "double_ieee754": 4.0,
+   "double_typedef": 4.0,
+   "float16_ieee754": 4.0,
+   "float16_typedef": 4.0
+  },
+  {
+   "float_ieee754": 5.0,
+   "float_typedef": 5.0,
+   "double_ieee754": 5.0,
+   "double_typedef": 5.0,
+   "float16_ieee754": 5.0,
+   "float16_typedef": 5.0
+  },
+  {
+   "float_ieee754": "NaN",
+   "float_typedef": "NaN",
+   "double_ieee754": "NaN",
+   "double_typedef": "NaN",
+   "float16_ieee754": "NaN",
+   "float16_typedef": "NaN"
+  },
+  {
+   "float_ieee754": -2.0,
+   "float_typedef": -2.0,
+   "double_ieee754": -2.0,
+   "double_typedef": -2.0,
+   "float16_ieee754": -2.0,
+   "float16_typedef": -2.0
+  },
+  {
+   "float_ieee754": "NaN",
+   "float_typedef": "NaN",
+   "double_ieee754": "NaN",
+   "double_typedef": "NaN",
+   "float16_ieee754": "NaN",
+   "float16_typedef": "NaN"
+  },
+  {
+   "float_ieee754": -1.0,
+   "float_typedef": -1.0,
+   "double_ieee754": -1.0,
+   "double_typedef": -1.0,
+   "float16_ieee754": -1.0,
+   "float16_typedef": -1.0
+  },
+  {
+   "float_ieee754": -0.0,
+   "float_typedef": -0.0,
+   "double_ieee754": -0.0,
+   "double_typedef": -0.0,
+   "float16_ieee754": -0.0,
+   "float16_typedef": -0.0
+  },
+  {
+   "float_ieee754": 0.0,
+   "float_typedef": 0.0,
+   "double_ieee754": 0.0,
+   "double_typedef": 0.0,
+   "float16_ieee754": 0.0,
+   "float16_typedef": 0.0
+  },
+  {
+   "float_ieee754": 1.0,
+   "float_typedef": 1.0,
+   "double_ieee754": 1.0,
+   "double_typedef": 1.0,
+   "float16_ieee754": 1.0,
+   "float16_typedef": 1.0
+  },
+  {
+   "float_ieee754": "NaN",
+   "float_typedef": "NaN",
+   "double_ieee754": "NaN",
+   "double_typedef": "NaN",
+   "float16_ieee754": "NaN",
+   "float16_typedef": "NaN"
+  },
+  {
+   "float_ieee754": 3.0,
+   "float_typedef": 3.0,
+   "double_ieee754": 3.0,
+   "double_typedef": 3.0,
+   "float16_ieee754": 3.0,
+   "float16_typedef": 3.0
+  },
+  {
+   "float_ieee754": "NaN",
+   "float_typedef": "NaN",
+   "double_ieee754": "NaN",
+   "double_typedef": "NaN",
+   "float16_ieee754": "NaN",
+   "float16_typedef": "NaN"
+  }
+ ]
+}

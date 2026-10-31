@@ -1,0 +1,60 @@
+{
+ "rows": 6,
+ "head": [
+  {
+   "id": 1,
+   "phoneNumbers": null
+  },
+  {
+   "id": 2,
+   "phoneNumbers": null
+  },
+  {
+   "id": 3,
+   "phoneNumbers": {
+    "phone": []
+   }
+  },
+  {
+   "id": 4,
+   "phoneNumbers": {
+    "phone": [
+     {
+      "number": 5555555555,
+      "kind": null
+     }
+    ]
+   }
+  },
+  {
+   "id": 5,
+   "phoneNumbers": {
+    "phone": [
+     {
+      "number": 1111111111,
+      "kind": "home"
+     }
+    ]
+   }
+  },
+  {
+   "id": 6,
+   "phoneNumbers": {
+    "phone": [
+     {
+      "number": 1111111111,
+      "kind": "home"
+     },
+     {
+      "number": 2222222222,
+      "kind": null
+     },
+     {
+      "number": 3333333333,
+      "kind": "mobile"
+     }
+    ]
+   }
+  }
+ ]
+}

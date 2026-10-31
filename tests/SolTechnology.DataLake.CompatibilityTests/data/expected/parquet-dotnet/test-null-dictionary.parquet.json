@@ -1,0 +1,26 @@
+{
+ "rows": 7,
+ "head": [
+  {
+   "foo": null
+  },
+  {
+   "foo": "bar"
+  },
+  {
+   "foo": "baz"
+  },
+  {
+   "foo": "bar"
+  },
+  {
+   "foo": "baz"
+  },
+  {
+   "foo": "bar"
+  },
+  {
+   "foo": "baz"
+  }
+ ]
+}

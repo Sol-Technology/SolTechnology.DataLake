@@ -1,0 +1,17 @@
+{
+ "rows": 4,
+ "head": [
+  {
+   "json_field": "{\"a\":1}"
+  },
+  {
+   "json_field": "{\"a\":1,\"b\":null}"
+  },
+  {
+   "json_field": "[1,null,3]"
+  },
+  {
+   "json_field": null
+  }
+ ]
+}

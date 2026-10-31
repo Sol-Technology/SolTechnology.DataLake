@@ -1,0 +1,77 @@
+{
+ "rows": 6,
+ "head": [
+  {
+   "string_column": "apple",
+   "int32_column": 1,
+   "int64_column": 9223372036854775807,
+   "double_column": 3.141592653589793,
+   "float_column": 3.1415927410125732,
+   "boolean_column": true,
+   "timestamp_column": "2022-01-31T12:30:00.000000",
+   "date_column": "2022-01-01",
+   "time_column": "12:30:00.000000",
+   "fixed_len_byte_array_column": "base64:YWJj"
+  },
+  {
+   "string_column": "banana",
+   "int32_column": 2,
+   "int64_column": -9223372036854775808,
+   "double_column": 2.2,
+   "float_column": 2.200000047683716,
+   "boolean_column": false,
+   "timestamp_column": "2022-02-28T15:45:30.000000",
+   "date_column": "2022-02-02",
+   "time_column": "15:45:30.000000",
+   "fixed_len_byte_array_column": "base64:ZGVm"
+  },
+  {
+   "string_column": "cherry",
+   "int32_column": 3,
+   "int64_column": 2147483647,
+   "double_column": null,
+   "float_column": null,
+   "boolean_column": true,
+   "timestamp_column": "2022-03-31T08:00:45.000000",
+   "date_column": "2022-03-03",
+   "time_column": "08:00:45.000000",
+   "fixed_len_byte_array_column": "base64:Z2hp"
+  },
+  {
+   "string_column": "strawberry",
+   "int32_column": 2147483647,
+   "int64_column": 2147483648,
+   "double_column": "Infinity",
+   "float_column": "Infinity",
+   "boolean_column": false,
+   "timestamp_column": "2024-12-31T23:59:59.000000",
+   "date_column": "2024-02-29",
+   "time_column": "23:59:59.000000",
+   "fixed_len_byte_array_column": "base64:amts"
+  },
+  {
+   "string_column": "peach",
+   "int32_column": 1,
+   "int64_column": -2147483648,
+   "double_column": "-Infinity",
+   "float_column": "-Infinity",
+   "boolean_column": true,
+   "timestamp_column": "1699-01-01T00:00:00.000000",
+   "date_column": "2023-02-28",
+   "time_column": "00:00:00.000000",
+   "fixed_len_byte_array_column": "base64:bW5v"
+  },
+  {
+   "string_column": "melon",
+   "int32_column": -2147483648,
+   "int64_column": 0,
+   "double_column": 3.3,
+   "float_column": 3.299999952316284,
+   "boolean_column": false,
+   "timestamp_column": "1900-01-01T01:01:01.000000",
+   "date_column": "0100-01-01",
+   "time_column": "12:30:13.000000",
+   "fixed_len_byte_array_column": "base64:cXJz"
+  }
+ ]
+}

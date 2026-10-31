@@ -1,0 +1,17 @@
+{
+ "rows": 3,
+ "head": [
+  {
+   "column with known type": "known string 1",
+   "column with unknown type": "base64:dW5rbm93biBzdHJpbmcgMQ=="
+  },
+  {
+   "column with known type": "known string 2",
+   "column with unknown type": "base64:dW5rbm93biBzdHJpbmcgMg=="
+  },
+  {
+   "column with known type": "known string 3",
+   "column with unknown type": "base64:dW5rbm93biBzdHJpbmcgMw=="
+  }
+ ]
+}

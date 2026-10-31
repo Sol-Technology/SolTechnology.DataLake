@@ -1,0 +1,21 @@
+{
+ "rows": 4,
+ "head": [
+  {
+   "DateTypeChecker": "2017-01-01",
+   "TimestampTypeChecker": "2017-01-01T00:00:00.000000"
+  },
+  {
+   "DateTypeChecker": "2017-02-01",
+   "TimestampTypeChecker": "2017-02-01T00:00:00.000000"
+  },
+  {
+   "DateTypeChecker": null,
+   "TimestampTypeChecker": null
+  },
+  {
+   "DateTypeChecker": "2017-02-01",
+   "TimestampTypeChecker": "2017-02-01T00:00:00.000000"
+  }
+ ]
+}

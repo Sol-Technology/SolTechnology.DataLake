@@ -1,0 +1,18 @@
+{
+ "rows": 1,
+ "head": [
+  {
+   "Promoweek": 202252,
+   "Planning_Six": 203,
+   "Store": 64791,
+   "ArticleID": 7435964,
+   "Order Unit": "Colli",
+   "Preorder Quantity": 15,
+   "Output as FP": false,
+   "Preorder FP equi.": 0,
+   "Order date": "2022-12-17T00:00:00.000000",
+   "Delivery date": "2022-12-20T00:00:00.000000",
+   "Delivery DateTime": "2022-12-20T07:30:00.000000"
+  }
+ ]
+}

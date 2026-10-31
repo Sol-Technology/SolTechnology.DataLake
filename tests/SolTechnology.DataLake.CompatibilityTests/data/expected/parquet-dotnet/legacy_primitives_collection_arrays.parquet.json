@@ -1,0 +1,63 @@
+{
+ "rows": 1,
+ "head": [
+  {
+   "Booleans": [
+    true,
+    false
+   ],
+   "Shorts": [
+    1,
+    2
+   ],
+   "UShorts": [
+    1,
+    2
+   ],
+   "Integers": [
+    1,
+    2
+   ],
+   "UIntegers": [
+    1,
+    2
+   ],
+   "Longs": [
+    1,
+    2
+   ],
+   "ULongs": [
+    1,
+    2
+   ],
+   "Floats": [
+    1.2000000476837158,
+    1.2999999523162842
+   ],
+   "Doubles": [
+    1.2,
+    1.3
+   ],
+   "Decimals": [
+    "1.2",
+    "1.3"
+   ],
+   "DateTimes": [
+    "2023-01-01T00:00:00.000000",
+    "2023-02-01T16:30:05.000000"
+   ],
+   "TimeSpans": [
+    "00:00:00.000000",
+    "00:00:05.000000"
+   ],
+   "Intervals": [
+    "base64:AAAAAAAAAAAAAAAA",
+    "base64:AAAAAAEAAAABAAAA"
+   ],
+   "Strings": [
+    "Hello",
+    "People"
+   ]
+  }
+ ]
+}

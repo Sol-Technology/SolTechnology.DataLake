@@ -1,0 +1,205 @@
+{
+ "rows": 10589,
+ "head": [
+  {
+   "MANDT": "400",
+   "KURST": "EOM",
+   "FCURR": "CAD",
+   "TCURR": "EUR",
+   "GDATU": "79889168",
+   "UKURS": "0.7072",
+   "FFACT": "0",
+   "TFACT": "0"
+  },
+  {
+   "MANDT": "400",
+   "KURST": "EOM",
+   "FCURR": "USD",
+   "TCURR": "CAD",
+   "GDATU": "79889168",
+   "UKURS": "0.9786",
+   "FFACT": "0",
+   "TFACT": "0"
+  },
+  {
+   "MANDT": "400",
+   "KURST": "EOM",
+   "FCURR": "USD",
+   "TCURR": "EUR",
+   "GDATU": "79889168",
+   "UKURS": "0.692",
+   "FFACT": "0",
+   "TFACT": "0"
+  },
+  {
+   "MANDT": "400",
+   "KURST": "EOM",
+   "FCURR": "CAD",
+   "TCURR": "EUR",
+   "GDATU": "79879868",
+   "UKURS": "0.76138",
+   "FFACT": "0",
+   "TFACT": "0"
+  },
+  {
+   "MANDT": "400",
+   "KURST": "EOM",
+   "FCURR": "USD",
+   "TCURR": "CAD",
+   "GDATU": "79879868",
+   "UKURS": "0.99681",
+   "FFACT": "0",
+   "TFACT": "0"
+  },
+  {
+   "MANDT": "400",
+   "KURST": "EOM",
+   "FCURR": "USD",
+   "TCURR": "EUR",
+   "GDATU": "79879868",
+   "UKURS": "0.75896",
+   "FFACT": "0",
+   "TFACT": "0"
+  },
+  {
+   "MANDT": "400",
+   "KURST": "EOM",
+   "FCURR": "CAD",
+   "TCURR": "EUR",
+   "GDATU": "79879369",
+   "UKURS": "0.77694",
+   "FFACT": "0",
+   "TFACT": "0"
+  },
+  {
+   "MANDT": "400",
+   "KURST": "EOM",
+   "FCURR": "USD",
+   "TCURR": "CAD",
+   "GDATU": "79879369",
+   "UKURS": "1.02232",
+   "FFACT": "0",
+   "TFACT": "0"
+  },
+  {
+   "MANDT": "400",
+   "KURST": "EOM",
+   "FCURR": "USD",
+   "TCURR": "EUR",
+   "GDATU": "79879369",
+   "UKURS": "0.79428",
+   "FFACT": "0",
+   "TFACT": "0"
+  },
+  {
+   "MANDT": "400",
+   "KURST": "EOM",
+   "FCURR": "EUR",
+   "TCURR": "RON",
+   "GDATU": "79869169",
+   "UKURS": "4.4466",
+   "FFACT": "0",
+   "TFACT": "0"
+  },
+  {
+   "MANDT": "400",
+   "KURST": "EOM",
+   "FCURR": "USD",
+   "TCURR": "RON",
+   "GDATU": "79869169",
+   "UKURS": "3.3516",
+   "FFACT": "0",
+   "TFACT": "0"
+  },
+  {
+   "MANDT": "400",
+   "KURST": "EOM",
+   "FCURR": "CAD",
+   "TCURR": "EUR",
+   "GDATU": "79869168",
+   "UKURS": "0.71757",
+   "FFACT": "0",
+   "TFACT": "0"
+  },
+  {
+   "MANDT": "400",
+   "KURST": "EOM",
+   "FCURR": "USD",
+   "TCURR": "CAD",
+   "GDATU": "79869168",
+   "UKURS": "1.05297",
+   "FFACT": "0",
+   "TFACT": "0"
+  },
+  {
+   "MANDT": "400",
+   "KURST": "EOM",
+   "FCURR": "USD",
+   "TCURR": "EUR",
+   "GDATU": "79869168",
+   "UKURS": "0.75557",
+   "FFACT": "0",
+   "TFACT": "0"
+  },
+  {
+   "MANDT": "400",
+   "KURST": "EOM",
+   "FCURR": "CAD",
+   "TCURR": "EUR",
+   "GDATU": "79869069",
+   "UKURS": "0.7188",
+   "FFACT": "0",
+   "TFACT": "0"
+  },
+  {
+   "MANDT": "400",
+   "KURST": "EOM",
+   "FCURR": "USD",
+   "TCURR": "CAD",
+   "GDATU": "79869069",
+   "UKURS": "1.03014",
+   "FFACT": "0",
+   "TFACT": "0"
+  },
+  {
+   "MANDT": "400",
+   "KURST": "EOM",
+   "FCURR": "USD",
+   "TCURR": "EUR",
+   "GDATU": "79869069",
+   "UKURS": "0.74047",
+   "FFACT": "0",
+   "TFACT": "0"
+  },
+  {
+   "MANDT": "400",
+   "KURST": "EOM",
+   "FCURR": "CAD",
+   "TCURR": "EUR",
+   "GDATU": "79889468",
+   "UKURS": "0.7151",
+   "FFACT": "0",
+   "TFACT": "0"
+  },
+  {
+   "MANDT": "400",
+   "KURST": "EOM",
+   "FCURR": "USD",
+   "TCURR": "CAD",
+   "GDATU": "79889468",
+   "UKURS": "0.9722",
+   "FFACT": "0",
+   "TFACT": "0"
+  },
+  {
+   "MANDT": "400",
+   "KURST": "EOM",
+   "FCURR": "USD",
+   "TCURR": "EUR",
+   "GDATU": "79889468",
+   "UKURS": "0.6952",
+   "FFACT": "0",
+   "TFACT": "0"
+  }
+ ]
+}

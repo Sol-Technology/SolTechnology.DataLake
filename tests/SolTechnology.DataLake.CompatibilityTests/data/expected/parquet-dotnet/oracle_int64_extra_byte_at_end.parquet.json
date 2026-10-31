@@ -1,0 +1,85 @@
+{
+ "rows": 126,
+ "head": [
+  {
+   "Limit type": "DEPOSIT",
+   "Limit period in days": 1
+  },
+  {
+   "Limit type": "TRADING",
+   "Limit period in days": 1
+  },
+  {
+   "Limit type": "DEPOSIT",
+   "Limit period in days": 30
+  },
+  {
+   "Limit type": "DEPOSIT",
+   "Limit period in days": 7
+  },
+  {
+   "Limit type": "DEPOSIT",
+   "Limit period in days": 30
+  },
+  {
+   "Limit type": "TRADING",
+   "Limit period in days": 1
+  },
+  {
+   "Limit type": "DEPOSIT",
+   "Limit period in days": 1
+  },
+  {
+   "Limit type": "DEPOSIT",
+   "Limit period in days": 7
+  },
+  {
+   "Limit type": "DEPOSIT",
+   "Limit period in days": 1
+  },
+  {
+   "Limit type": "TRADING",
+   "Limit period in days": 1
+  },
+  {
+   "Limit type": "DEPOSIT",
+   "Limit period in days": 1
+  },
+  {
+   "Limit type": "DEPOSIT",
+   "Limit period in days": 1
+  },
+  {
+   "Limit type": "TRADING",
+   "Limit period in days": 1
+  },
+  {
+   "Limit type": "DEPOSIT",
+   "Limit period in days": 7
+  },
+  {
+   "Limit type": "DEPOSIT",
+   "Limit period in days": 30
+  },
+  {
+   "Limit type": "DEPOSIT",
+   "Limit period in days": 1
+  },
+  {
+   "Limit type": "TRADING",
+   "Limit period in days": 1
+  },
+  {
+   "Limit type": "TRADING",
+   "Limit period in days": 1
+  },
+  {
+   "Limit type": "DEPOSIT",
+   "Limit period in days": 7
+  },
+  {
+   "Limit type": "DEPOSIT",
+   "Limit period in days": 1
+  }
+ ]
+}

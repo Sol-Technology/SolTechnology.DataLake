@@ -1,0 +1,17 @@
+{
+ "rows": 3,
+ "head": [
+  {
+   "String": "a",
+   "Nullable": null
+  },
+  {
+   "String": "b",
+   "Nullable": "y"
+  },
+  {
+   "String": "c",
+   "Nullable": "z"
+  }
+ ]
+}

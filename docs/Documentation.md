@@ -29,18 +29,22 @@ dotnet tool install -g SolTechnology.DataLake.Cli --prerelease  # datalake
 
 ## Open a dataset
 
-A dataset is every Parquet (`.parquet`, `.parq`) and Avro (`.avro`) file under one location, read as one table into your class.
+A dataset is every Parquet (`.parquet`, `.parq`) and Avro (`.avro`) file under one location, read as one table into your class. The location can also be one file.
 
 ```csharp
 var dataset = DataLake.Open<Order>("/data/orders");            // local path or file://
 await foreach (var order in dataset.ReadAsync())
 {
 }
+
+var one = DataLake.Open<Order>("s3://shop/export/orders.parquet", options);   // a single file
 ```
 
 * Files are read in path order, row groups in file order.
 * Hidden files are left out: names starting with `_` or `.` (`_SUCCESS`, `.part-0.parquet.crc`, `_temporary/`), unless they are a partition (`_x=1/`).
+* A folder named like a file (Spark's `df.write.parquet("orders.parquet")`) is still read as a folder. A single file has no partitions, as partitions come from the path under the opened location.
 * Nothing is read until you enumerate `ReadAsync()`. Opening the same dataset again reads the files again; there is no cache.
+* A file that can't be read (corrupt, or a feature Parquet.Net doesn't support) is an `InvalidDataException` with the file and the column in the message, and the original exception inside.
 
 `DataLakeOptions`:
 
@@ -94,6 +98,7 @@ Only lossless conversions. Anything else is an error that names the column and b
 | boolean, int8-64, uint, float, double | same type or wider (`int` into `long`, `float` into `double`, any integer into `decimal`) |
 | decimal | `decimal` |
 | string | `string`, enum (by name, any case) |
+| JSON | `string` |
 | integer | enum (by value) |
 | binary | `byte[]` |
 | UUID | `Guid` |
@@ -113,6 +118,12 @@ Timestamps follow [SolTechnology.DateTimeZone](https://github.com/Sol-Technology
 | map | `Dictionary<K, V>`, `IDictionary<K, V>`, `IReadOnlyDictionary<K, V>`, `object` |
 
 Any depth: a list of structs with lists inside works. Null struct, null list, empty list and null element stay apart. A null element into `List<int>` is an error; use `List<int?>`. Errors name the path inside the column: `lines[].price`, `matrix[][]`.
+
+Older list layouts are read like pyarrow reads them:
+
+* a repeated field without a list group (`repeated int32 ids`) is a list;
+* a two-level list from parquet-mr before 1.9 and Spark 1.x (`optional group stats (LIST) { repeated double array; }`) is a list of the repeated type;
+* a repeated group without the LIST annotation, as protobuf writers produce it (`repeated group lines { required binary sku; }`), is a list of structs.
 
 ## Filters
 
@@ -219,3 +230,13 @@ Credentials come from the environment, like the cloud CLIs: the default AWS chai
 * Parquet.Net 6.1 writes the min/max statistics of microsecond and nanosecond timestamps in milliseconds. Those statistics are not used for files written by Parquet.Net, so such filters read the row groups instead of skipping them. Files from Spark, PyIceberg, pyarrow or Trino are fine.
 * A location without data files reads zero rows. On local disk a folder that does not exist is an error.
 * Tested against Silo (a MinIO fork) and Azurite in Docker. ADLS Gen2, OneLake and R2 use the same APIs but were not tested against the real services yet.
+
+## Compatibility
+
+Every build reads 114 files from [apache/parquet-testing](https://github.com/apache/parquet-testing) and the Parquet.Net test data (Spark, parquet-mr, Impala, Hive, pyarrow, DuckDB, Rust and protobuf writers) and compares row counts and the first 20 rows with pyarrow. 92 match. pyarrow can't read 6 of them either (DataLake reads 3). The other 16:
+
+* FLOAT16 columns, the Hadoop LZ4 framing of old parquet-mr, a MAP without values, a repeated group with several fields and no LIST annotation, and a few page layouts fail inside Parquet.Net 6.1;
+* decimals with more than 28 digits don't fit `System.Decimal`;
+* `large_string_map.brotli.parquet` (strings over 2 GB): after it fails, Parquet.Net returns corrupted strings for other files in the same process. Don't read files like that next to real work until it is fixed upstream.
+
+The list with reasons is in [KnownGaps.cs](../tests/SolTechnology.DataLake.CompatibilityTests/KnownGaps.cs).

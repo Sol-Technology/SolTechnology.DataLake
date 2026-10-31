@@ -1,0 +1,3 @@
+{
+ "error": "OSError: Error creating dataset. Could not read schema from '/work/data/parquet-testing/flba12_timestamp.parquet'. Is this a 'parquet' file?: Could not open Parquet input source '/work/data/parquet-testing/flba12_timestamp.parquet': Timestamp(isAdjustedToUTC=true, timeUnit=milliseconds, is_from_conv"
+}

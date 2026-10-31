@@ -1,0 +1,19 @@
+{
+ "rows": 2,
+ "head": [
+  {
+   "isbn": "12345-6",
+   "author": {
+    "firstName": "Ivan",
+    "lastName": "Gavryliuk"
+   }
+  },
+  {
+   "isbn": "12345-7",
+   "author": {
+    "firstName": "Richard",
+    "lastName": "Conway"
+   }
+  }
+ ]
+}

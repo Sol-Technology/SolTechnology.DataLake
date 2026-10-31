@@ -1,0 +1,18 @@
+{
+ "rows": 1,
+ "head": [
+  {
+   "__id": 1,
+   "int_field": 123456789,
+   "bigint_field": 123456789012,
+   "string_field": "this is a string",
+   "numeric_field": "1234.56",
+   "guid_field": "1758cb68-848f-465b-98f9-ed87ec34acbe",
+   "boolean_field": true,
+   "json_field": "{\"hello\": \"world\"}",
+   "datetime_field": "2020-03-02T21:13:31.456000",
+   "__version": 1583198978154694,
+   "__deleted": false
+  }
+ ]
+}

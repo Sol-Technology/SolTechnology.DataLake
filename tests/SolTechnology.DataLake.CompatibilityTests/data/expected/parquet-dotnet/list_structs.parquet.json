@@ -1,0 +1,18 @@
+{
+ "rows": 1,
+ "head": [
+  {
+   "cities": [
+    {
+     "country": "UK",
+     "name": "London"
+    },
+    {
+     "country": "US",
+     "name": "New York"
+    }
+   ],
+   "id": 1
+  }
+ ]
+}

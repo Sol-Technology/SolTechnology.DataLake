@@ -1,0 +1,14 @@
+{
+ "rows": 1,
+ "head": [
+  {
+   "cities": [
+    "London",
+    "Derby",
+    "Paris",
+    "New York"
+   ],
+   "id": 1
+  }
+ ]
+}
