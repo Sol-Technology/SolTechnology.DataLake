@@ -5,7 +5,7 @@ using SolTechnology.DataLake.IntegrationTests.Containers;
 namespace SolTechnology.DataLake.IntegrationTests;
 
 /// <summary>
-/// One setup for the whole run: Silo (S3), Keycloak (OAuth2), Lakekeeper (REST catalog) and Trino in Docker, then the test tables,
+/// One setup for the whole run: Silo (S3), Azurite (Azure Blob), Keycloak (OAuth2), Lakekeeper (REST catalog) and Trino in Docker, then the test tables,
 /// written by PyIceberg and Trino, with the rows PyIceberg reads back as the expected result.
 /// </summary>
 [SetUpFixture]
@@ -14,6 +14,7 @@ public static class IntegrationTestsFixture
     public static TestContainersContext Context { get; private set; } = null!;
     public static SiloFixture Silo { get; private set; } = null!;
     public static KeycloakFixture Keycloak { get; private set; } = null!;
+    public static AzuriteFixture Azurite { get; private set; } = null!;
     public static LakekeeperFixture Lakekeeper { get; private set; } = null!;
     public static TrinoFixture Trino { get; private set; } = null!;
     public static PyIcebergFixture PyIceberg { get; private set; } = null!;
@@ -33,6 +34,7 @@ public static class IntegrationTestsFixture
         await Context.InitializeAsync();
         Silo = new SiloFixture(Context);
         Keycloak = new KeycloakFixture(Context);
+        Azurite = new AzuriteFixture(Context);
         Lakekeeper = new LakekeeperFixture(Context, Keycloak);
         Trino = new TrinoFixture(Context);
         PyIceberg = new PyIcebergFixture(Context);
@@ -40,7 +42,7 @@ public static class IntegrationTestsFixture
         // Trino and the PyIceberg image take the longest and need nothing else to start.
         var trino = Trino.InitializeAsync();
         var pyIceberg = PyIceberg.InitializeAsync();
-        await Task.WhenAll(Silo.InitializeAsync(), Keycloak.InitializeAsync());
+        await Task.WhenAll(Silo.InitializeAsync(), Keycloak.InitializeAsync(), Azurite.InitializeAsync());
         await Lakekeeper.InitializeAsync();
         await pyIceberg;
 
@@ -60,6 +62,7 @@ public static class IntegrationTestsFixture
         if (Trino is not null) await Trino.DisposeAsync();
         if (Lakekeeper is not null) await Lakekeeper.DisposeAsync();
         if (Keycloak is not null) await Keycloak.DisposeAsync();
+        if (Azurite is not null) await Azurite.DisposeAsync();
         if (Silo is not null) await Silo.DisposeAsync();
         if (Context is not null) await Context.DisposeAsync();
     }

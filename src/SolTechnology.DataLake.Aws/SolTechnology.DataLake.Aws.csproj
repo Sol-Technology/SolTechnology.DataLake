@@ -1,38 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFramework>net10.0</TargetFramework>
 		<RootNamespace>SolTechnology.DataLake.Aws</RootNamespace>
 		<AssemblyName>SolTechnology.DataLake.Aws</AssemblyName>
-		<GenerateDocumentationFile>true</GenerateDocumentationFile>
-	</PropertyGroup>
-
-	<PropertyGroup>
 		<PackageId>SolTechnology.DataLake.Aws</PackageId>
-		<Version>0.1.0-preview.1</Version>
-		<Authors>Adrian Strugala</Authors>
-		<Company>SolTechnology</Company>
-		<Product>SolTechnology.DataLake</Product>
-		<Description>Amazon S3 (and S3-compatible: MinIO, R2, Ceph) storage for SolTechnology.DataLake: read Parquet datasets and Iceberg tables from s3:// locations. Free for noncommercial use and for companies under 100 people / 1M USD revenue (PolyForm Noncommercial / Small Business); commercial licence for other organisations - see LICENSE.md.</Description>
+		<Description>Amazon S3 and S3-compatible storage (MinIO, R2, Ceph) for SolTechnology.DataLake: read datasets from s3:// locations with ranged GETs. $(LicenceSummary)</Description>
 		<PackageTags>iceberg apache-iceberg parquet lakehouse datalake s3 aws minio</PackageTags>
-		<PackageLicenseFile>LICENSE.md</PackageLicenseFile>
-		<PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
-		<PackageReadmeFile>README.md</PackageReadmeFile>
-		<RepositoryUrl>https://github.com/Sol-Technology/SolTechnology.DataLake</RepositoryUrl>
-		<RepositoryType>git</RepositoryType>
-		<PackageProjectUrl>https://github.com/Sol-Technology/SolTechnology.DataLake</PackageProjectUrl>
-		<PublishRepositoryUrl>true</PublishRepositoryUrl>
-		<EmbedUntrackedSources>true</EmbedUntrackedSources>
-		<IncludeSymbols>true</IncludeSymbols>
-		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
 	</PropertyGroup>
-
-	<ItemGroup>
-		<None Include="..\..\README.md" Pack="true" Visible="false" PackagePath="\" />
-		<None Include="..\..\LICENSE.md" Pack="true" Visible="false" PackagePath="\" />
-		<None Include="..\..\licenses\PolyForm-Noncommercial-1.0.0.md" Pack="true" Visible="false" PackagePath="licenses\" />
-		<None Include="..\..\licenses\PolyForm-Small-Business-1.0.0.md" Pack="true" Visible="false" PackagePath="licenses\" />
-	</ItemGroup>
 
 	<ItemGroup>
 		<PackageReference Include="AWSSDK.S3" />

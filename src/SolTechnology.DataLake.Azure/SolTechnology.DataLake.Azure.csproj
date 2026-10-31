@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<RootNamespace>SolTechnology.DataLake.Azure</RootNamespace>
+		<AssemblyName>SolTechnology.DataLake.Azure</AssemblyName>
+		<PackageId>SolTechnology.DataLake.Azure</PackageId>
+		<Description>Azure Blob Storage, ADLS Gen2 and Microsoft Fabric OneLake storage for SolTechnology.DataLake: read datasets from abfss:// and https:// locations with ranged reads. $(LicenceSummary)</Description>
+		<PackageTags>iceberg apache-iceberg parquet lakehouse datalake azure adls adls-gen2 onelake fabric blob-storage</PackageTags>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Azure.Storage.Blobs" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\SolTechnology.DataLake\SolTechnology.DataLake.csproj" />
+	</ItemGroup>
+
+</Project>
