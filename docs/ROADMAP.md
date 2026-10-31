@@ -17,30 +17,31 @@ A throwaway prototype that answers the hard questions before the real code. Live
 - [x] Bucket transform (Murmur3) against the test values from the Iceberg spec
 - [x] Spike report: [spikes/REPORT.md](../spikes/REPORT.md)
 
-## 0.1 Dataset
+## 0.1 Dataset ✔
 
 A folder of Parquet or Avro files read as one table.
 
-- [ ] Storage abstraction: list, range read, write, conditional write, delete; local file system. Done: list and range read, local disk. Left: write, conditional write, delete (needed for 0.2)
+- [x] Storage abstraction: list and range read; local disk
 - [x] `SolTechnology.DataLake.Aws`: S3 and S3-compatible (MinIO, R2)
-- [ ] `SolTechnology.DataLake.Azure`: ADLS Gen2 and OneLake
-- [ ] Parquet read: projection, row group statistics, logical types, nested types. Done: projection, statistics, flat columns. Left: nested types
-- [ ] Avro container read through AvroConvert
+- [x] `SolTechnology.DataLake.Azure`: Blob Storage, ADLS Gen2 and OneLake through the Blob API
+- [x] Parquet read: projection, row group statistics decoded by logical type, nested types (struct, list, map, any depth)
+- [x] Avro container read through AvroConvert, same mapping rules as Parquet
 - [x] Column layer and compiled mapper from columns to C# classes
-- [ ] Type mapping: decimals, `DateOnly`, `TimeOnly`, timestamps through SolTechnology.DateTimeZone, `Guid`, nullability. Done: decimals, `DateOnly`, UTC timestamps to `DateTimeZone` / `DateTimeOffset`, timestamps without a zone to `UnzonedDateTime`, nullability, widening, enums. Left: `TimeOnly`, `Guid`
+- [x] Type mapping: decimals, `DateOnly`, `TimeOnly`, timestamps through SolTechnology.DateTimeZone, `Guid`, nullability, widening, enums
 - [x] Discovery: hive partitions (`date=…/country=…`), partition types from the class
 - [x] Schema merge across files, clear error on a type conflict
-- [x] Filters: LINQ to predicate, pruning by partition, by file and row group statistics, then by row
-- [ ] Metrics: files and bytes read and skipped (`Meter`, `ActivitySource`). Done: `ScanMetrics` per read. Left: `Meter`, `ActivitySource`
-- [ ] CLI `datalake`: `ls`, `schema`, `head`
-- [ ] Benchmarks: vs Parquet.Net file by file, vs `pyarrow.dataset`
-- [ ] Docs and sample: read a partitioned dataset from S3 and ADLS
-- [ ] Publish workflow to nuget.org
+- [x] Filters: LINQ to predicate, pruning by partition, by row group statistics, then by row
+- [x] Metrics: `ScanMetrics` per read, `Meter` and `ActivitySource` for OpenTelemetry
+- [x] CLI `datalake`: `ls`, `schema`, `head`
+- [x] Benchmark vs Parquet.Net file by file
+- [x] Docs: [Documentation.md](Documentation.md), S3 and ADLS examples
+- [x] Publish workflow to nuget.org
 
 ## 0.2 Arrow
 
 Writes, and Arrow results in your classes.
 
+- [ ] Storage writes: write, conditional write, delete (local, S3, Azure)
 - [ ] Parquet write: row group and file size, Snappy/Zstd, statistics
 - [ ] Partitioned dataset write: `PartitionBy`, modes append / overwrite partitions / error if exists
 - [ ] Public API: Arrow `RecordBatch` to C# classes and back
@@ -48,6 +49,8 @@ Writes, and Arrow results in your classes.
 - [ ] ADBC samples: Databricks SQL, Snowflake, Flight SQL
 - [ ] Interop tests: DuckDB reads what we write
 - [ ] CLI: `cat --format json`, `stats`
+- [ ] Benchmark vs `pyarrow.dataset` on the same data
+- [ ] Faster nested columns (compiled per type, like flat ones)
 
 ## 0.3 Iceberg read
 

@@ -6,6 +6,7 @@
     <File Path="README.md" />
     <File Path="LICENSE.md" />
     <File Path="docs/ROADMAP.md" />
+    <File Path="docs/Documentation.md" />
   </Folder>
   <Folder Name="/spikes/">
     <Project Path="spikes/IcebergSpike/IcebergSpike.csproj" />
