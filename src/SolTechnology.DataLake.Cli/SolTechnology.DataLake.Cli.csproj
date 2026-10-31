@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+		<PackAsTool>true</PackAsTool>
+		<ToolCommandName>datalake</ToolCommandName>
+		<AssemblyName>datalake</AssemblyName>
+		<RootNamespace>SolTechnology.DataLake.Cli</RootNamespace>
+		<PackageId>SolTechnology.DataLake.Cli</PackageId>
+		<Description>SolTechnology.DataLake on the command line: list a dataset's files, print its schema, print the first rows as JSON. Local disk, S3 and Azure (ADLS Gen2, OneLake). $(LicenceSummary)</Description>
+		<PackageTags>iceberg apache-iceberg parquet avro lakehouse datalake cli dotnet-tool s3 azure adls onelake</PackageTags>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Azure.Identity" />
+		<PackageReference Include="System.CommandLine" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\SolTechnology.DataLake\SolTechnology.DataLake.csproj" />
+		<ProjectReference Include="..\SolTechnology.DataLake.Aws\SolTechnology.DataLake.Aws.csproj" />
+		<ProjectReference Include="..\SolTechnology.DataLake.Azure\SolTechnology.DataLake.Azure.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<InternalsVisibleTo Include="SolTechnology.DataLake.UnitTests" />
+	</ItemGroup>
+
+</Project>

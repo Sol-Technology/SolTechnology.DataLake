@@ -17,5 +17,6 @@
     <Project Path="src/SolTechnology.DataLake/SolTechnology.DataLake.csproj" />
     <Project Path="src/SolTechnology.DataLake.Aws/SolTechnology.DataLake.Aws.csproj" />
     <Project Path="src/SolTechnology.DataLake.Azure/SolTechnology.DataLake.Azure.csproj" />
+    <Project Path="src/SolTechnology.DataLake.Cli/SolTechnology.DataLake.Cli.csproj" />
   </Folder>
 </Solution>

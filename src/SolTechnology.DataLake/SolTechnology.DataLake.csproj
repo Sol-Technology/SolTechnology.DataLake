@@ -17,7 +17,7 @@
 	<ItemGroup>
 		<InternalsVisibleTo Include="SolTechnology.DataLake.UnitTests" />
 		<InternalsVisibleTo Include="SolTechnology.DataLake.IntegrationTests" />
-		<InternalsVisibleTo Include="SolTechnology.DataLake.Cli" />
+		<InternalsVisibleTo Include="datalake" />
 	</ItemGroup>
 
 </Project>

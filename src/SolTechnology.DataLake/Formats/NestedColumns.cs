@@ -342,6 +342,16 @@ internal sealed class NestedBinding<T>(PropertyMap<T> property, NestedNode root,
 
     public async Task AssignAsync(ParquetRowGroupReader group, T[] rows, CancellationToken ct)
     {
+        var values = await NestedColumn.AssembleAsync(group, root, leaves, rows.Length, ct).ConfigureAwait(false);
+        for (var r = 0; r < rows.Length; r++) Property.BoxedSetter(rows[r], values[r]);
+    }
+}
+
+/// <summary>A nested (or any) top-level column of one row group, assembled into one value per row.</summary>
+internal static class NestedColumn
+{
+    public static async Task<object?[]> AssembleAsync(ParquetRowGroupReader group, NestedNode root, DataField[] leaves, int rowCount, CancellationToken ct)
+    {
         var columns = new Shredded[leaves.Length];
         for (var l = 0; l < leaves.Length; l++) columns[l] = await Shredded.ReadAsync(group, leaves[l], ct).ConfigureAwait(false);
 
@@ -349,24 +359,26 @@ internal sealed class NestedBinding<T>(PropertyMap<T> property, NestedNode root,
         var rowStarts = new int[leaves.Length][];
         for (var l = 0; l < leaves.Length; l++)
         {
-            var starts = new List<int>(rows.Length);
+            var starts = new List<int>(rowCount);
             for (var i = 0; i < columns[l].Count; i++)
                 if (columns[l].RepAt(i) == 0) starts.Add(i);
-            if (starts.Count != rows.Length)
-                throw new InvalidDataException($"Column '{leaves[l].Path}' has {starts.Count} rows in a row group of {rows.Length}.");
+            if (starts.Count != rowCount)
+                throw new InvalidDataException($"Column '{leaves[l].Path}' has {starts.Count} rows in a row group of {rowCount}.");
             rowStarts[l] = [.. starts];
         }
 
+        var values = new object?[rowCount];
         var from = new int[leaves.Length];
         var to = new int[leaves.Length];
-        for (var r = 0; r < rows.Length; r++)
+        for (var r = 0; r < rowCount; r++)
         {
             for (var l = 0; l < leaves.Length; l++)
             {
                 from[l] = rowStarts[l][r];
-                to[l] = r + 1 < rows.Length ? rowStarts[l][r + 1] : columns[l].Count;
+                to[l] = r + 1 < rowCount ? rowStarts[l][r + 1] : columns[l].Count;
             }
-            Property.BoxedSetter(rows[r], root.Assemble(columns, from, to));
+            values[r] = root.Assemble(columns, from, to);
         }
+        return values;
     }
 }

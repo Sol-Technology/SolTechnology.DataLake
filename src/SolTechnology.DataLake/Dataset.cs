@@ -93,10 +93,7 @@ public sealed class Dataset<T> where T : class
         var predicate = _filter is null ? null : PredicateTranslator.Translate(_filter);
         var residual = _filter?.Compile();
 
-        var files = new List<LakeFile>();
-        await foreach (var file in _storage.ListAsync(Location, cancellationToken).ConfigureAwait(false))
-            if (!HivePartitions.IsHidden(file.RelativePath) && FormatOf(file.RelativePath) != FileFormat.Unknown) files.Add(file);
-        files.Sort((a, b) => string.CompareOrdinal(a.RelativePath, b.RelativePath));
+        var files = await DatasetFiles.ListAsync(_storage, Location, cancellationToken).ConfigureAwait(false);
 
         foreach (var file in files)
         {
@@ -110,7 +107,7 @@ public sealed class Dataset<T> where T : class
 
             var scan = new FileScan<T>(map, partitions, predicate, residual, metrics);
             await using var stream = new RangeStream(_storage, file, bytes => metrics.BytesRead += bytes);
-            var rows = FormatOf(file.RelativePath) == FileFormat.Avro
+            var rows = DatasetFiles.FormatOf(file.RelativePath) == FileFormat.Avro
                 ? AvroFile<T>.ReadAsync(stream, file.Location, scan, cancellationToken)
                 : ParquetFile<T>.ReadAsync(stream, file.Location, scan, cancellationToken);
             await foreach (var row in rows.ConfigureAwait(false))
@@ -139,15 +136,28 @@ public sealed class Dataset<T> where T : class
         return null;
     }
 
-    private enum FileFormat { Unknown, Parquet, Avro }
-
-    private static FileFormat FormatOf(string path) =>
-        path.EndsWith(".parquet", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".parq", StringComparison.OrdinalIgnoreCase) ? FileFormat.Parquet
-        : path.EndsWith(".avro", StringComparison.OrdinalIgnoreCase) ? FileFormat.Avro
-        : FileFormat.Unknown;
-
     private sealed class Rebind(ParameterExpression from, ParameterExpression to) : ExpressionVisitor
     {
         protected override Expression VisitParameter(ParameterExpression node) => node == from ? to : node;
     }
+}
+
+internal enum FileFormat { Unknown, Parquet, Avro }
+
+/// <summary>The data files of a dataset: hidden files (<c>_SUCCESS</c>, <c>.crc</c>, <c>_temporary/</c>) and unknown formats left out, sorted by path.</summary>
+internal static class DatasetFiles
+{
+    public static async Task<List<LakeFile>> ListAsync(ILakeStorage storage, string location, CancellationToken ct)
+    {
+        var files = new List<LakeFile>();
+        await foreach (var file in storage.ListAsync(location, ct).ConfigureAwait(false))
+            if (!HivePartitions.IsHidden(file.RelativePath) && FormatOf(file.RelativePath) != FileFormat.Unknown) files.Add(file);
+        files.Sort((a, b) => string.CompareOrdinal(a.RelativePath, b.RelativePath));
+        return files;
+    }
+
+    public static FileFormat FormatOf(string path) =>
+        path.EndsWith(".parquet", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".parq", StringComparison.OrdinalIgnoreCase) ? FileFormat.Parquet
+        : path.EndsWith(".avro", StringComparison.OrdinalIgnoreCase) ? FileFormat.Avro
+        : FileFormat.Unknown;
 }

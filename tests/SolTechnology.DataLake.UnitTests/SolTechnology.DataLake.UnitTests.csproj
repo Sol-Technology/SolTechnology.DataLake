@@ -28,6 +28,7 @@
 	<ItemGroup>
 		<ProjectReference Include="..\..\src\SolTechnology.DataLake\SolTechnology.DataLake.csproj" />
 		<ProjectReference Include="..\..\src\SolTechnology.DataLake.Azure\SolTechnology.DataLake.Azure.csproj" />
+		<ProjectReference Include="..\..\src\SolTechnology.DataLake.Cli\SolTechnology.DataLake.Cli.csproj" />
 	</ItemGroup>
 
 </Project>
