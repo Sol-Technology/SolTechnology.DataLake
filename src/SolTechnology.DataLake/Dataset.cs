@@ -28,7 +28,7 @@ public static class DataLake
 }
 
 /// <summary>
-/// Parquet files under one location, possibly partitioned hive-style (<c>date=2026-10-29/country=PL/</c>), read into
+/// Parquet and Avro files under one location, possibly partitioned hive-style (<c>date=2026-10-29/country=PL/</c>), read into
 /// <typeparamref name="T"/>. Columns map to properties by name; partition values from the path fill properties too.
 /// </summary>
 public sealed class Dataset<T> where T : class
@@ -73,7 +73,7 @@ public sealed class Dataset<T> where T : class
 
         var files = new List<LakeFile>();
         await foreach (var file in _storage.ListAsync(Location, cancellationToken).ConfigureAwait(false))
-            if (!HivePartitions.IsHidden(file.RelativePath) && IsParquet(file.RelativePath)) files.Add(file);
+            if (!HivePartitions.IsHidden(file.RelativePath) && FormatOf(file.RelativePath) != FileFormat.Unknown) files.Add(file);
         files.Sort((a, b) => string.CompareOrdinal(a.RelativePath, b.RelativePath));
 
         foreach (var file in files)
@@ -88,7 +88,10 @@ public sealed class Dataset<T> where T : class
 
             var scan = new FileScan<T>(map, partitions, predicate, residual, metrics);
             await using var stream = new RangeStream(_storage, file, bytes => metrics.BytesRead += bytes);
-            await foreach (var row in ParquetFile<T>.ReadAsync(stream, file.Location, scan, cancellationToken).ConfigureAwait(false))
+            var rows = FormatOf(file.RelativePath) == FileFormat.Avro
+                ? AvroFile<T>.ReadAsync(stream, file.Location, scan, cancellationToken)
+                : ParquetFile<T>.ReadAsync(stream, file.Location, scan, cancellationToken);
+            await foreach (var row in rows.ConfigureAwait(false))
                 yield return row;
         }
     }
@@ -114,8 +117,12 @@ public sealed class Dataset<T> where T : class
         return null;
     }
 
-    private static bool IsParquet(string path) =>
-        path.EndsWith(".parquet", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".parq", StringComparison.OrdinalIgnoreCase);
+    private enum FileFormat { Unknown, Parquet, Avro }
+
+    private static FileFormat FormatOf(string path) =>
+        path.EndsWith(".parquet", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".parq", StringComparison.OrdinalIgnoreCase) ? FileFormat.Parquet
+        : path.EndsWith(".avro", StringComparison.OrdinalIgnoreCase) ? FileFormat.Avro
+        : FileFormat.Unknown;
 
     private sealed class Rebind(ParameterExpression from, ParameterExpression to) : ExpressionVisitor
     {

@@ -1,0 +1,39 @@
+[
+  {
+    "id": 1,
+    "customer": "Ann",
+    "amount": "9.99",
+    "created_at": "2026-10-29T12:30:15.123456Z",
+    "local_at": "2026-10-29T14:30:15.123000",
+    "day": "2026-10-29",
+    "at": "12:30:15.123456",
+    "uid": "f79c3e09-677c-4bbd-a479-3f349cb785e7",
+    "status": "PAID",
+    "address": {
+      "city": "Wroclaw",
+      "zip": "50-001"
+    },
+    "tags": [
+      "a",
+      "b"
+    ],
+    "attributes": {
+      "color": 1,
+      "size": null
+    }
+  },
+  {
+    "id": 2,
+    "customer": null,
+    "amount": null,
+    "created_at": "2026-10-30T00:00:00Z",
+    "local_at": "2026-10-30T00:00:00",
+    "day": "2026-10-30",
+    "at": null,
+    "uid": null,
+    "status": "NEW",
+    "address": null,
+    "tags": [],
+    "attributes": {}
+  }
+]
