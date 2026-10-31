@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/benchmarks/">
+    <Project Path="benchmarks/SolTechnology.DataLake.Benchmarks/SolTechnology.DataLake.Benchmarks.csproj" />
+  </Folder>
   <Folder Name="/docs/">
     <File Path="README.md" />
     <File Path="LICENSE.md" />
