@@ -38,17 +38,38 @@ public sealed class AzureBlobStorage(BlobServiceClient service) : ILakeStorage
     /// <inheritdoc />
     public async IAsyncEnumerable<LakeFile> ListAsync(string location, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        var (container, prefix) = Parse(location);
+        var (container, name) = Parse(location);
         // "orders" must not match "orders_old/": list the folder, not a name prefix.
-        if (prefix.Length > 0 && !prefix.EndsWith('/')) prefix += "/";
+        var prefix = name.Length > 0 && !name.EndsWith('/') ? name + "/" : name;
 
+        var found = false;
         var client = service.GetBlobContainerClient(container);
         await foreach (var blob in client.GetBlobsAsync(BlobTraits.Metadata, BlobStates.None, prefix, cancellationToken).ConfigureAwait(false))
         {
             // ADLS Gen2 and OneLake list directories as empty blobs marked hdi_isfolder.
-            if (blob.Metadata?.TryGetValue("hdi_isfolder", out var folder) == true && folder == "true") continue;
+            if (IsFolder(blob.Metadata)) continue;
             if (blob.Name.EndsWith('/')) continue;
+            found = true;
             yield return new LakeFile(Location(location, container, blob.Name), blob.Properties.ContentLength ?? 0, blob.Name[prefix.Length..]);
+        }
+
+        // Not a folder: maybe the location is one blob. Spark writes folders named "x.parquet", so the name alone can't tell.
+        if (!found && prefix != name && await PropertiesOf(client.GetBlobClient(name), cancellationToken).ConfigureAwait(false) is { } properties && !IsFolder(properties.Metadata))
+            yield return new LakeFile(Location(location, container, name), properties.ContentLength, name[(name.LastIndexOf('/') + 1)..]);
+    }
+
+    private static bool IsFolder(IDictionary<string, string>? metadata) =>
+        metadata?.TryGetValue("hdi_isfolder", out var folder) == true && folder == "true";
+
+    private static async Task<BlobProperties?> PropertiesOf(BlobClient blob, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return (await blob.GetPropertiesAsync(cancellationToken: cancellationToken).ConfigureAwait(false)).Value;
+        }
+        catch (RequestFailedException e) when (e.Status == 404)
+        {
+            return null;
         }
     }
 

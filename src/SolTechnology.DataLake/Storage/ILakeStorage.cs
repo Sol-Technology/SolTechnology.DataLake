@@ -15,7 +15,10 @@ public interface ILakeStorage
     /// <summary>Whether this storage handles <paramref name="location"/>, e.g. by its URI scheme.</summary>
     bool CanHandle(string location);
 
-    /// <summary>All files under <paramref name="location"/>, recursively, with paths relative to it.</summary>
+    /// <summary>
+    /// All files under <paramref name="location"/>, recursively, with paths relative to it. When <paramref name="location"/>
+    /// is a single file, just that file, with its name as the relative path.
+    /// </summary>
     IAsyncEnumerable<LakeFile> ListAsync(string location, CancellationToken cancellationToken = default);
 
     /// <summary>

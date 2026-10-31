@@ -70,6 +70,22 @@ public class DatasetOnAzureTests
         filtered.BytesRead.Should().BeLessThan(all.BytesRead / 5);
     }
 
+    [Test]
+    public async Task A_single_blob_is_a_dataset_too()
+    {
+        var file = $"{_location}/date=2026-10-02/country=PL/part-00000.snappy.parquet";
+
+        var rows = await DataLake.Open<IdOnly>(file, new DataLakeOptions { Storage = new AzureBlobStorage(_blobs) }).ReadAsync().ToListAsync();
+
+        rows.Should().HaveCount(1000);
+        rows[0].Id.Should().Be(3000);
+    }
+
+    public sealed class IdOnly
+    {
+        public long Id { get; set; }
+    }
+
     private Dataset<Order> Open() => DataLake.Open<Order>(_location, new DataLakeOptions { Storage = new AzureBlobStorage(_blobs) });
 
     private static async Task<byte[]> ParquetBytes(long[] ids)

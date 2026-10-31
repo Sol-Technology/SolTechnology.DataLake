@@ -16,6 +16,11 @@ public sealed class LocalStorage : ILakeStorage
     public async IAsyncEnumerable<LakeFile> ListAsync(string location, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         var root = ToPath(location);
+        if (File.Exists(root))
+        {
+            yield return new LakeFile(root, new FileInfo(root).Length, Path.GetFileName(root));
+            yield break;
+        }
         if (!Directory.Exists(root)) throw new DirectoryNotFoundException($"Dataset location '{location}' does not exist.");
 
         foreach (var path in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))

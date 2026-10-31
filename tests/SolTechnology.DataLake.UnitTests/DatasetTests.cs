@@ -361,4 +361,29 @@ public class DatasetTests
 
         open.Should().Throw<NotSupportedException>().WithMessage("*No storage for 's3://bucket/orders/'*SolTechnology.DataLake.Aws*");
     }
+
+    [Test]
+    public async Task A_single_file_is_a_dataset_too()
+    {
+        await _lake.WriteAsync("country=PL/orders.parquet", OrderColumns, [new long[] { 1, 2 }, new decimal?[] { 1m, 2m }, new[] { "a", "b" }]);
+
+        var rows = await DataLake.Open<CountryRow>(_lake.PathOf("country=PL/orders.parquet")).ReadAsync().ToListAsync();
+
+        // Partitions come from the path under the opened location, so a single file has none.
+        rows.Select(r => r.Id).Should().Equal(1, 2);
+        rows.Should().AllSatisfy(r => r.Country.Should().BeNull());
+    }
+
+    [Test]
+    public async Task A_folder_named_like_a_file_is_still_a_folder()
+    {
+        // Spark: df.write.parquet("orders.parquet") writes a folder of part files.
+        await _lake.WriteAsync("orders.parquet/part-00000.parquet", OrderColumns, [new long[] { 1 }, new decimal?[] { 1m }, new[] { "a" }]);
+        await _lake.WriteAsync("orders.parquet/part-00001.parquet", OrderColumns, [new long[] { 2 }, new decimal?[] { 2m }, new[] { "b" }]);
+        _lake.Touch("orders.parquet/_SUCCESS");
+
+        var rows = await DataLake.Open<CountryRow>(_lake.PathOf("orders.parquet")).ReadAsync().ToListAsync();
+
+        rows.Select(r => r.Id).Should().Equal(1, 2);
+    }
 }

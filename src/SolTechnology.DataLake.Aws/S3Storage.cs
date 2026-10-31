@@ -24,10 +24,11 @@ public sealed class S3Storage(IAmazonS3 client) : ILakeStorage
     /// <inheritdoc />
     public async IAsyncEnumerable<LakeFile> ListAsync(string location, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        var (scheme, bucket, prefix) = Parse(location);
+        var (scheme, bucket, key) = Parse(location);
         // "orders" must not match "orders_old/": list the folder, not a key prefix.
-        if (prefix.Length > 0 && !prefix.EndsWith('/')) prefix += "/";
+        var prefix = key.Length > 0 && !key.EndsWith('/') ? key + "/" : key;
 
+        var found = false;
         var request = new ListObjectsV2Request { BucketName = bucket, Prefix = prefix };
         do
         {
@@ -35,11 +36,29 @@ public sealed class S3Storage(IAmazonS3 client) : ILakeStorage
             foreach (var item in page.S3Objects ?? [])
             {
                 if (item.Key.EndsWith('/')) continue;
+                found = true;
                 yield return new LakeFile($"{scheme}://{bucket}/{item.Key}", item.Size ?? 0, item.Key[prefix.Length..]);
             }
             request.ContinuationToken = page.IsTruncated == true ? page.NextContinuationToken : null;
         }
         while (request.ContinuationToken is not null);
+
+        // Not a folder: maybe the location is one object. Spark writes folders named "x.parquet", so the name alone can't tell.
+        if (!found && prefix != key && await SizeOf(bucket, key, cancellationToken).ConfigureAwait(false) is { } size)
+            yield return new LakeFile($"{scheme}://{bucket}/{key}", size, key[(key.LastIndexOf('/') + 1)..]);
+    }
+
+    private async Task<long?> SizeOf(string bucket, string key, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var metadata = await client.GetObjectMetadataAsync(bucket, key, cancellationToken).ConfigureAwait(false);
+            return metadata.ContentLength;
+        }
+        catch (AmazonS3Exception e) when (e.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            return null;
+        }
     }
 
     /// <inheritdoc />
