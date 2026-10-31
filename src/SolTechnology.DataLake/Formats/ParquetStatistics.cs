@@ -2,6 +2,7 @@ using System.Numerics;
 using Parquet.Data;
 using Parquet.Meta;
 using Parquet.Schema;
+using SolTechnology.DataLake.Mapping;
 
 namespace SolTechnology.DataLake.Formats;
 
@@ -20,6 +21,29 @@ internal static class ParquetStatistics
     /// </summary>
     public static bool TrustsTimestamps(string? createdBy) =>
         createdBy is null || !createdBy.StartsWith("Parquet.Net", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// TIMESTAMP(isAdjustedToUTC=true) and legacy TIMESTAMP_MILLIS/MICROS hold UTC instants; TIME stored as an integer
+    /// needs its unit.
+    /// </summary>
+    public static Logical LogicalOf(DataField field)
+    {
+        var element = field.SchemaElement;
+        if (element is null) return Logical.Plain;
+        var utc = element.LogicalType?.TIMESTAMP is { } timestamp
+            ? timestamp.IsAdjustedToUTC
+            : element.ConvertedType is ConvertedType.TIMESTAMP_MILLIS or ConvertedType.TIMESTAMP_MICROS;
+        var time = TimeScale.None;
+        if (field.ClrType == typeof(long) || field.ClrType == typeof(int))
+        {
+            var unit = element.LogicalType?.TIME?.Unit;
+            time = unit?.MILLIS is not null || element.ConvertedType == ConvertedType.TIME_MILLIS ? TimeScale.Millis
+                : unit?.MICROS is not null || element.ConvertedType == ConvertedType.TIME_MICROS ? TimeScale.Micros
+                : unit?.NANOS is not null ? TimeScale.Nanos
+                : TimeScale.None;
+        }
+        return new Logical(utc, time);
+    }
 
     public static object? Decode(object? raw, DataField field, bool trustTimestamps)
     {

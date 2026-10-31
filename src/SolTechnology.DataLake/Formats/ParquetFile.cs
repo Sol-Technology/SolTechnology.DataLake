@@ -26,7 +26,7 @@ internal static class ParquetFile<T> where T : class
     public static async IAsyncEnumerable<T> ReadAsync(Stream stream, string location, FileScan<T> scan, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
     {
         await using var reader = await ParquetReader.CreateAsync(stream, Options, leaveStreamOpen: true, ct).ConfigureAwait(false);
-        var bindings = Bind(reader.Schema, location, scan, ParquetStatistics.TrustsTimestamps(reader.Metadata?.CreatedBy));
+        var (bindings, nested) = Bind(reader.Schema, location, scan, ParquetStatistics.TrustsTimestamps(reader.Metadata?.CreatedBy));
         var byProperty = bindings.ToDictionary(b => b.Property.Property.Name);
         var partitionsByProperty = scan.Partitions.ToDictionary(p => p.Key.Property.Name, p => p.Value);
 
@@ -45,6 +45,7 @@ internal static class ParquetFile<T> where T : class
             var rows = new T[count];
             for (var i = 0; i < count; i++) rows[i] = scan.Map.Create();
             foreach (var binding in bindings) await binding.AssignAsync(group, rows, ct).ConfigureAwait(false);
+            foreach (var binding in nested) await binding.AssignAsync(group, rows, ct).ConfigureAwait(false);
             foreach (var (property, value) in scan.Partitions)
                 for (var i = 0; i < count; i++) property.BoxedSetter(rows[i], value);
 
@@ -58,17 +59,19 @@ internal static class ParquetFile<T> where T : class
         }
     }
 
-    private static List<ColumnBinding<T>> Bind(ParquetSchema schema, string location, FileScan<T> scan, bool trustTimestamps)
+    private static (List<ColumnBinding<T>> Flat, List<NestedBinding<T>> Nested) Bind(ParquetSchema schema, string location, FileScan<T> scan, bool trustTimestamps)
     {
         var bindings = new List<ColumnBinding<T>>();
+        var nested = new List<NestedBinding<T>>();
         var bound = new HashSet<PropertyMap<T>>();
         foreach (var field in schema.Fields)
         {
             var property = scan.Map.Find(field.Name);
             if (property is null) continue;
-            if (field is not DataField { IsArray: false } data)
-                throw new NotSupportedException($"{location}: column '{field.Name}' is nested ({field.SchemaType}); nested columns are not supported yet.");
-            bindings.Add(ColumnBinding<T>.Create(data, property, IsUtc(data), trustTimestamps, location));
+            if (field is DataField { IsArray: false } data)
+                bindings.Add(ColumnBinding<T>.Create(data, property, LogicalOf(data), trustTimestamps, location));
+            else
+                nested.Add(NestedBinding<T>.Create(field, property, scan.Map.Naming, location));
             bound.Add(property);
         }
 
@@ -76,7 +79,7 @@ internal static class ParquetFile<T> where T : class
         if (missing is not null)
             throw new InvalidDataException($"{location} has no column '{missing.Column}' for {typeof(T).Name}.{missing.Property.Name} ({missing.Type.Name}). " +
                                            $"Make the property nullable to read files without it, or mark it [IgnoreDataMember].");
-        return bindings;
+        return (bindings, nested);
     }
 
     private static ColumnFacts? Facts(string property, ParquetRowGroupReader group, int count,
@@ -100,21 +103,14 @@ internal static class ParquetFile<T> where T : class
         }
     }
 
-    // TIMESTAMP(isAdjustedToUTC=true) and the legacy TIMESTAMP_MILLIS/MICROS converted types hold UTC instants.
-    private static bool IsUtc(DataField field)
-    {
-        var element = field.SchemaElement;
-        if (element is null) return false;
-        if (element.LogicalType?.TIMESTAMP is { } timestamp) return timestamp.IsAdjustedToUTC;
-        return element.ConvertedType is Parquet.Meta.ConvertedType.TIMESTAMP_MILLIS or Parquet.Meta.ConvertedType.TIMESTAMP_MICROS;
-    }
+    public static Logical LogicalOf(DataField field) => ParquetStatistics.LogicalOf(field);
 }
 
 internal abstract class ColumnBinding<T> where T : class
 {
     public required DataField Field { get; init; }
     public required PropertyMap<T> Property { get; init; }
-    public required bool Utc { get; init; }
+    public required Logical Logical { get; init; }
     public required bool TrustTimestamps { get; init; }
 
     public abstract Task AssignAsync(ParquetRowGroupReader group, T[] rows, CancellationToken ct);
@@ -122,24 +118,24 @@ internal abstract class ColumnBinding<T> where T : class
     /// <summary>A statistics value as the property type, for comparing with filter constants.</summary>
     public object? ToPropertyType(object? value) =>
         ParquetStatistics.Decode(value, Field, TrustTimestamps) is { } decoded
-            ? Conversions.ConvertValue(decoded, Property.Type, Utc, Field.Name)
+            ? Conversions.ConvertValue(decoded, Property.Type, Logical, Field.Name)
             : null;
 
-    public static ColumnBinding<T> Create(DataField field, PropertyMap<T> property, bool utc, bool trustTimestamps, string location)
+    public static ColumnBinding<T> Create(DataField field, PropertyMap<T> property, Logical logical, bool trustTimestamps, string location)
     {
         var element = field.ClrType == typeof(ReadOnlyMemory<char>) ? typeof(string) : field.ClrType;
         var input = element == typeof(string) || element == typeof(byte[]) ? element
             : field.IsNullable ? typeof(Nullable<>).MakeGenericType(element)
             : element;
-        if (!Conversions.CanConvert(input, property.Type, utc))
-            throw new NotSupportedException($"{location}: {Conversions.Mismatch(field.Name, element, property.Type, utc).Message} " +
+        if (!Conversions.CanConvert(input, property.Type, logical))
+            throw new NotSupportedException($"{location}: {Conversions.Mismatch(field.Name, element, property.Type, logical).Message} " +
                                             $"Property: {typeof(T).Name}.{property.Property.Name}.");
         var type = typeof(ColumnBinding<,,>).MakeGenericType(typeof(T), input, property.Type);
-        var binding = (ColumnBinding<T>)Activator.CreateInstance(type, Conversions.Get(input, property.Type, utc, field.Name), property.Setter)!;
-        return binding.With(field, property, utc, trustTimestamps);
+        var binding = (ColumnBinding<T>)Activator.CreateInstance(type, Conversions.Get(input, property.Type, logical, field.Name), property.Setter)!;
+        return binding.With(field, property, logical, trustTimestamps);
     }
 
-    protected abstract ColumnBinding<T> With(DataField field, PropertyMap<T> property, bool utc, bool trustTimestamps);
+    protected abstract ColumnBinding<T> With(DataField field, PropertyMap<T> property, Logical logical, bool trustTimestamps);
 }
 
 internal sealed class ColumnBinding<T, TIn, TOut>(Func<TIn, TOut> convert, Action<T, TOut> set) : ColumnBinding<T> where T : class
@@ -152,8 +148,8 @@ internal sealed class ColumnBinding<T, TIn, TOut>(Func<TIn, TOut> convert, Actio
         for (var i = 0; i < rows.Length; i++) set(rows[i], convert(values[i]));
     }
 
-    protected override ColumnBinding<T> With(DataField field, PropertyMap<T> property, bool utc, bool trustTimestamps) =>
-        new ColumnBinding<T, TIn, TOut>(convert, set) { Field = field, Property = property, Utc = utc, TrustTimestamps = trustTimestamps };
+    protected override ColumnBinding<T> With(DataField field, PropertyMap<T> property, Logical logical, bool trustTimestamps) =>
+        new ColumnBinding<T, TIn, TOut>(convert, set) { Field = field, Property = property, Logical = logical, TrustTimestamps = trustTimestamps };
 
     private static Func<ParquetRowGroupReader, DataField, int, CancellationToken, Task<TIn[]>> CreateReader()
     {

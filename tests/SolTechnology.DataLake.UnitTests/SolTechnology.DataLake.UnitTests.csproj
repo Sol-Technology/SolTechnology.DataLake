@@ -12,11 +12,16 @@
 		<PackageReference Include="NUnit" />
 		<PackageReference Include="NUnit.Analyzers" />
 		<PackageReference Include="NUnit3TestAdapter" />
+		<PackageReference Include="Parquet.Net" />
 	</ItemGroup>
 
 	<ItemGroup>
 		<Using Include="NUnit.Framework" />
 		<Using Include="AwesomeAssertions" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Include="Fixtures\*.parquet;Fixtures\*.json;Fixtures\*.avro" CopyToOutputDirectory="PreserveNewest" />
 	</ItemGroup>
 
 	<ItemGroup>

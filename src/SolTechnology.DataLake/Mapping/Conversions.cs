@@ -12,9 +12,18 @@ namespace SolTechnology.DataLake.Mapping;
 /// <see cref="DateTimeOffset"/> or <see cref="DateTime"/> (Kind.Utc); a timestamp without a zone into
 /// <see cref="UnzonedDateTime"/> or <see cref="DateTime"/> (Kind.Unspecified). Anything else is an error, never a guess.
 /// </summary>
+/// <summary>Unit of a TIME column stored as an integer.</summary>
+internal enum TimeScale { None, Millis, Micros, Nanos }
+
+/// <summary>What the physical value of a column means: a UTC instant, or a time of day stored as an integer.</summary>
+internal readonly record struct Logical(bool Utc, TimeScale Time = TimeScale.None)
+{
+    public static readonly Logical Plain = new(false);
+}
+
 internal static class Conversions
 {
-    private static readonly ConcurrentDictionary<(Type From, Type To, bool Utc, string Column), Delegate> Cache = new();
+    private static readonly ConcurrentDictionary<(Type From, Type To, Logical Logical, string Column), Delegate> Cache = new();
 
     private static readonly Dictionary<Type, Type[]> Widening = new()
     {
@@ -31,34 +40,34 @@ internal static class Conversions
 
     /// <summary>
     /// <c>Func&lt;TFrom, TTo&gt;</c>. <paramref name="from"/> is what the reader produces: a non-nullable value type,
-    /// <see cref="Nullable{T}"/>, or a reference type. <paramref name="utc"/>: the column holds UTC instants.
+    /// <see cref="Nullable{T}"/>, or a reference type. <paramref name="logical"/>: UTC instants, time units.
     /// </summary>
-    public static Delegate Get(Type from, Type to, bool utc, string column) =>
-        Cache.GetOrAdd((from, to, utc, column), key => Build(key.From, key.To, key.Utc, key.Column));
+    public static Delegate Get(Type from, Type to, Logical logical, string column) =>
+        Cache.GetOrAdd((from, to, logical, column), key => Build(key.From, key.To, key.Logical, key.Column));
 
     /// <summary>Whether a column of <paramref name="from"/> can be read into <paramref name="to"/>.</summary>
-    public static bool CanConvert(Type from, Type to, bool utc)
+    public static bool CanConvert(Type from, Type to, Logical logical)
     {
         var source = Nullable.GetUnderlyingType(from) ?? from;
         var target = Nullable.GetUnderlyingType(to) ?? to;
-        return Core(Expression.Parameter(source), target, utc) is not null;
+        return Core(Expression.Parameter(source), target, logical) is not null;
     }
 
     /// <summary>Boxed conversion for single values (statistics, partition values).</summary>
-    public static object? ConvertValue(object? value, Type to, bool utc, string column)
+    public static object? ConvertValue(object? value, Type to, Logical logical, string column)
     {
         if (value is null) return null;
         var target = Nullable.GetUnderlyingType(to) ?? to;
-        var convert = BoxedCache.GetOrAdd((value.GetType(), target, utc), key =>
+        var convert = BoxedCache.GetOrAdd((value.GetType(), target, logical), key =>
         {
             var input = Expression.Parameter(typeof(object));
-            var body = Core(Expression.Convert(input, key.From), key.To, key.Utc);
+            var body = Core(Expression.Convert(input, key.From), key.To, key.Logical);
             return body is null ? null : Expression.Lambda<Func<object, object>>(Expression.Convert(body, typeof(object)), input).Compile();
         });
-        return convert is not null ? convert(value) : throw Mismatch(column, value.GetType(), to, utc);
+        return convert is not null ? convert(value) : throw Mismatch(column, value.GetType(), to, logical);
     }
 
-    private static readonly ConcurrentDictionary<(Type From, Type To, bool Utc), Func<object, object>?> BoxedCache = new();
+    private static readonly ConcurrentDictionary<(Type From, Type To, Logical Logical), Func<object, object>?> BoxedCache = new();
 
     /// <summary>A partition value from a path segment (<c>date=2026-10-29</c>) as the property type.</summary>
     public static object? ParsePartition(string? text, Type to, string column)
@@ -88,7 +97,7 @@ internal static class Conversions
         }
     }
 
-    private static Delegate Build(Type from, Type to, bool utc, string column)
+    private static Delegate Build(Type from, Type to, Logical logical, string column)
     {
         var input = Expression.Parameter(from, "value");
         var source = Nullable.GetUnderlyingType(from);
@@ -96,7 +105,7 @@ internal static class Conversions
         var toAcceptsNull = !to.IsValueType || Nullable.GetUnderlyingType(to) is not null;
 
         Expression Converted(Expression nonNull) =>
-            Lift(Core(nonNull, target, utc) ?? throw Mismatch(column, source ?? from, to, utc), to);
+            Lift(Core(nonNull, target, logical) ?? throw Mismatch(column, source ?? from, to, logical), to);
 
         Expression body;
         if (source is not null || !from.IsValueType)
@@ -119,9 +128,12 @@ internal static class Conversions
     }
 
     // Non-null value of the column's type to the target's underlying type; null when there is no lossless conversion.
-    private static Expression? Core(Expression value, Type target, bool utc)
+    private static Expression? Core(Expression value, Type target, Logical logical)
     {
         var source = value.Type;
+        var utc = logical.Utc;
+        if (logical.Time != TimeScale.None && (source == typeof(long) || source == typeof(int)))
+            return Core(TimeOfDay(value, logical.Time), target, Logical.Plain);
         // Parquet.Net returns timestamps without a zone as Kind.Local; they are wall-clock values, so Unspecified.
         if (source == typeof(DateTime) && target == typeof(DateTime))
             return Expression.Call(typeof(DateTime), nameof(DateTime.SpecifyKind), null, value,
@@ -145,13 +157,32 @@ internal static class Conversions
             return Expression.Call(value, nameof(DateOnly.ToDateTime), null, Expression.Constant(TimeOnly.MinValue));
         if (source == typeof(TimeSpan) && target == typeof(TimeOnly))
             return Expression.Call(typeof(TimeOnly), nameof(TimeOnly.FromTimeSpan), null, value);
+        if (source == typeof(TimeOnly) && target == typeof(TimeSpan))
+            return Expression.Call(value, nameof(TimeOnly.ToTimeSpan), null);
+        if (source == typeof(byte[]) && target == typeof(Guid))
+            return Expression.New(typeof(Guid).GetConstructor([typeof(ReadOnlySpan<byte>), typeof(bool)])!,
+                Expression.Convert(value, typeof(ReadOnlySpan<byte>)), Expression.Constant(true));
         return null;
+    }
+
+    // TIME as an integer count of millis / micros / nanos since midnight.
+    private static Expression TimeOfDay(Expression value, TimeScale scale)
+    {
+        Expression ticks = Expression.Convert(value, typeof(long));
+        ticks = scale switch
+        {
+            TimeScale.Millis => Expression.Multiply(ticks, Expression.Constant(TimeSpan.TicksPerMillisecond)),
+            TimeScale.Micros => Expression.Multiply(ticks, Expression.Constant(TimeSpan.TicksPerMicrosecond)),
+            _ => Expression.Divide(ticks, Expression.Constant(TimeSpan.NanosecondsPerTick)),
+        };
+        return Expression.New(typeof(TimeOnly).GetConstructor([typeof(long)])!, ticks);
     }
 
     private static Expression Lift(Expression value, Type to) => value.Type == to ? value : Expression.Convert(value, to);
 
-    public static NotSupportedException Mismatch(string column, Type from, Type to, bool utc)
+    public static NotSupportedException Mismatch(string column, Type from, Type to, Logical logical)
     {
+        var utc = logical.Utc;
         var target = Nullable.GetUnderlyingType(to) ?? to;
         if (from == typeof(DateTime) && !utc && (target == typeof(DateTimeOffset) || target == typeof(DateTimeZone)))
             return new($"Column '{column}' is a timestamp without a time zone; read it into UnzonedDateTime (then .InZone(zone) if you know the zone) or DateTime, not {target.Name}.");

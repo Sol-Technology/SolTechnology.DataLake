@@ -48,6 +48,7 @@ internal sealed class ClassMap<T> where T : class
     private readonly Dictionary<string, PropertyMap<T>> _byColumn;
 
     public Func<T> Create { get; }
+    public JsonNamingPolicy? Naming { get; }
     public IReadOnlyList<PropertyMap<T>> Properties { get; }
 
     public static ClassMap<T> For(JsonNamingPolicy? naming) =>
@@ -55,13 +56,12 @@ internal sealed class ClassMap<T> where T : class
 
     private ClassMap(JsonNamingPolicy? naming)
     {
+        Naming = naming;
         var constructor = typeof(T).GetConstructor(Type.EmptyTypes)
             ?? throw new NotSupportedException($"{typeof(T).Name} needs a public parameterless constructor.");
         Create = Expression.Lambda<Func<T>>(Expression.New(constructor)).Compile();
 
-        Properties = typeof(T).GetProperties(BindingFlags.Public | BindingFlags.Instance)
-            .Where(p => p.SetMethod is { IsPublic: true } && p.GetIndexParameters().Length == 0)
-            .Where(p => p.GetCustomAttribute<IgnoreDataMemberAttribute>() is null)
+        Properties = ColumnNames.MappedProperties(typeof(T))
             .Select(p => new PropertyMap<T>(p, ColumnName(p, naming)))
             .ToList();
         _byColumn = new Dictionary<string, PropertyMap<T>>(StringComparer.OrdinalIgnoreCase);
@@ -75,7 +75,19 @@ internal sealed class ClassMap<T> where T : class
     public PropertyMap<T> Property(string propertyName) =>
         Properties.Single(p => p.Property.Name == propertyName);
 
-    private static string ColumnName(PropertyInfo property, JsonNamingPolicy? naming) =>
+    private static string ColumnName(PropertyInfo property, JsonNamingPolicy? naming) => ColumnNames.Of(property, naming);
+}
+
+internal static class ColumnNames
+{
+    /// <summary><c>[DataMember(Name = ...)]</c>, else the naming policy, else the property name.</summary>
+    public static string Of(PropertyInfo property, JsonNamingPolicy? naming) =>
         property.GetCustomAttribute<DataMemberAttribute>()?.Name is { Length: > 0 } name ? name
         : naming?.ConvertName(property.Name) ?? property.Name;
+
+    /// <summary>Public settable properties that map to columns.</summary>
+    public static IEnumerable<PropertyInfo> MappedProperties(Type type) =>
+        type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Where(p => p.SetMethod is { IsPublic: true } && p.GetIndexParameters().Length == 0)
+            .Where(p => p.GetCustomAttribute<IgnoreDataMemberAttribute>() is null);
 }

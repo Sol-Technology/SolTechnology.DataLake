@@ -1,0 +1,125 @@
+[
+  {
+    "id": 1,
+    "address": {
+      "city": "Wroclaw",
+      "zip": "50-001"
+    },
+    "tags": [
+      "a",
+      "b"
+    ],
+    "scores": [
+      1,
+      2,
+      3
+    ],
+    "lines": [
+      {
+        "sku": "x",
+        "qty": 2,
+        "price": "9.99"
+      },
+      {
+        "sku": "y",
+        "qty": 1,
+        "price": null
+      }
+    ],
+    "attributes": {
+      "color": 1,
+      "size": 2
+    },
+    "matrix": [
+      [
+        1,
+        2
+      ],
+      [
+        3
+      ]
+    ],
+    "customer": {
+      "name": "Ann",
+      "emails": [
+        "a@x",
+        "b@x"
+      ]
+    },
+    "at": "12:30:15.123456",
+    "uid": "f79c3e09-677c-4bbd-a479-3f349cb785e7"
+  },
+  {
+    "id": 2,
+    "address": null,
+    "tags": [],
+    "scores": null,
+    "lines": [],
+    "attributes": {},
+    "matrix": [
+      [],
+      null,
+      [
+        4
+      ]
+    ],
+    "customer": {
+      "name": null,
+      "emails": []
+    },
+    "at": null,
+    "uid": null
+  },
+  {
+    "id": 3,
+    "address": {
+      "city": null,
+      "zip": "00-950"
+    },
+    "tags": null,
+    "scores": [],
+    "lines": null,
+    "attributes": null,
+    "matrix": null,
+    "customer": null,
+    "at": "00:00:00",
+    "uid": "00000000-0000-0000-0000-000000000001"
+  },
+  {
+    "id": 4,
+    "address": {
+      "city": "Gdansk",
+      "zip": null
+    },
+    "tags": [
+      "c",
+      null,
+      "d"
+    ],
+    "scores": [
+      7
+    ],
+    "lines": [
+      null,
+      {
+        "sku": null,
+        "qty": null,
+        "price": "0.01"
+      }
+    ],
+    "attributes": {
+      "k": null
+    },
+    "matrix": [
+      [
+        null
+      ]
+    ],
+    "customer": {
+      "name": "Bob",
+      "emails": null
+    },
+    "at": "23:59:59",
+    "uid": null
+  }
+]
