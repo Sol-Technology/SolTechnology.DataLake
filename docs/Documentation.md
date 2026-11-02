@@ -154,7 +154,7 @@ var rows = await dataset.ReadAsync(metrics).ToListAsync();
 
 Avro object container files in a dataset are read through AvroConvert and mapped with the same rules as Parquet: names, nullability, partitions, types (`timestamp-*` is UTC, `local-timestamp-*` has no zone, `date`, `time-*`, `decimal`, `uuid`, enums by symbol name, records, arrays, maps).
 
-Avro has no statistics, so only partitions skip files. AvroConvert writes its licence notice to standard error unless `AvroConvert.License` is set; a fix in AvroConvert is planned so that DataLake users don't see it.
+Avro has no statistics, so only partitions skip files. AvroConvert comes with DataLake under the DataLake licence, so it doesn't write its own licence notice. A licence you declare for AvroConvert itself (`AvroConvert.License`) is still checked by AvroConvert.
 
 ## Storage: S3
 

@@ -35,9 +35,9 @@ What it changes in the plan:
 ## Found on the way
 
 AvroConvert (4.0.0-preview.3):
-- an Iceberg manifest needs keys like `schema`, `partition-spec` and `format-version` in the Avro file header; AvroConvert can't write custom header metadata yet, so writing tables waits for [AvroConvert#196](https://github.com/AdrianStrugala/AvroConvert/issues/196)
-- a record can't be read into `IDictionary<string, object>`, `dynamic` works: [AvroConvert#197](https://github.com/AdrianStrugala/AvroConvert/issues/197)
-- used inside DataLake, AvroConvert prints its own licence notice to the DataLake user; to fix in AvroConvert before DataLake 0.1
+- an Iceberg manifest needs keys like `schema`, `partition-spec` and `format-version` in the Avro file header; AvroConvert can't write custom header metadata yet, so writing tables waits for [AvroConvert#196](https://github.com/AdrianStrugala/AvroConvert/issues/196) (done in 4.0.0-preview.4)
+- a record can't be read into `IDictionary<string, object>`, `dynamic` works: [AvroConvert#197](https://github.com/AdrianStrugala/AvroConvert/issues/197) (done in 4.0.0-preview.4, the spike reads `partition` into a dictionary now)
+- used inside DataLake, AvroConvert prints its own licence notice to the DataLake user; to fix in AvroConvert before DataLake 0.1 (done in 4.0.0-preview.4: DataLake covers it)
 - everything else worked as is: `IAsyncEnumerable<T>` from a stream, `[DataMember(Name = "manifest_path")]`, unions with null, `Dictionary<int, byte[]>` from key-value arrays (`lower_bounds`), `DateOnly` from `date`
 
 Parquet.Net 6.1:

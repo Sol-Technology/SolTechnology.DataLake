@@ -15,7 +15,8 @@ The two free licences are offered in parallel: you may rely on whichever one fit
 neither does, you need a commercial licence to use SolTechnology.DataLake in production.
 
 The commercial licence for SolTechnology.DataLake is separate from the AvroConvert commercial licence. A
-licence for AvroConvert does not cover SolTechnology.DataLake.
+licence for AvroConvert does not cover SolTechnology.DataLake. SolTechnology.DataLake includes AvroConvert as a
+component: AvroConvert used through SolTechnology.DataLake is covered by the SolTechnology.DataLake licence.
 
 Required Notice: Copyright Adrian Strugała (https://soltechnology.dev)
 

@@ -19,6 +19,7 @@ internal static class AvroFile<T> where T : class
 {
     public static async IAsyncEnumerable<T> ReadAsync(Stream stream, string location, FileScan<T> scan, [EnumeratorCancellation] CancellationToken ct)
     {
+        AvroComponent.Use();
         var fields = SchemaFields(AvroConvert.GetSchema(stream), location);
         stream.Position = 0;
 

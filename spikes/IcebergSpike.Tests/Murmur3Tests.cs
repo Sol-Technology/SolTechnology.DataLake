@@ -32,7 +32,7 @@ public class Murmur3Tests
 
         foreach (var file in files)
         {
-            var bucket = Convert.ToInt64(((IDictionary<string, object?>)file.Partition!)["id_bucket"], CultureInfo.InvariantCulture);
+            var bucket = Convert.ToInt64(file.Partition!["id_bucket"], CultureInfo.InvariantCulture);
             var ids = new List<long>();
             await foreach (var row in table.ReadFile(file, table.Metadata.Schema(table.Metadata.CurrentSchemaId))) ids.Add((long)row["id"]!);
 

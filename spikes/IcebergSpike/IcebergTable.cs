@@ -177,7 +177,7 @@ public sealed class IcebergTable(TableMetadata metadata, IFileIO io)
 
     private static bool PartitionMayMatch(DataFile file, PartitionSpec spec, IcebergSchema schema, IReadOnlyList<Predicate> filter)
     {
-        var values = (IDictionary<string, object?>?)file.Partition ?? new Dictionary<string, object?>();
+        var values = file.Partition ?? new Dictionary<string, object?>();
         foreach (var field in spec.Fields)
         {
             var value = Values.Normalize(PartitionType(field, schema), values[field.Name]);

@@ -42,7 +42,7 @@ public sealed class DataFile
     [DataMember(Name = "content")] public int Content { get; set; }
     [DataMember(Name = "file_path")] public string FilePath { get; set; } = "";
     [DataMember(Name = "file_format")] public string FileFormat { get; set; } = "";
-    [DataMember(Name = "partition")] public dynamic? Partition { get; set; }
+    [DataMember(Name = "partition")] public Dictionary<string, object?>? Partition { get; set; }
     [DataMember(Name = "record_count")] public long RecordCount { get; set; }
     [DataMember(Name = "file_size_in_bytes")] public long FileSizeInBytes { get; set; }
     [DataMember(Name = "null_value_counts")] public Dictionary<int, long>? NullValueCounts { get; set; }

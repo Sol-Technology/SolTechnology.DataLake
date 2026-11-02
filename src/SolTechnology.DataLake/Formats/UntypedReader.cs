@@ -60,6 +60,7 @@ internal static class UntypedReader
 
     private static async IAsyncEnumerable<Dictionary<string, object?>> Avro(Stream stream, [EnumeratorCancellation] CancellationToken ct)
     {
+        AvroComponent.Use();
         await foreach (var record in AvroConvert.Deserialize<object>(stream, cancellationToken: ct).ConfigureAwait(false))
             yield return (Dictionary<string, object?>)Plain(record)!;
     }

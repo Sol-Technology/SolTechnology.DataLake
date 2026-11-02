@@ -5,7 +5,7 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageVersion Include="Apache.Arrow" Version="23.0.0" />
-    <PackageVersion Include="AvroConvert" Version="4.0.0-preview.3" />
+    <PackageVersion Include="AvroConvert" Version="4.0.0-preview.4" />
     <PackageVersion Include="AWSSDK.S3" Version="4.0.104.8" />
     <PackageVersion Include="Azure.Identity" Version="1.21.0" />
     <PackageVersion Include="Azure.Storage.Blobs" Version="12.30.1" />
