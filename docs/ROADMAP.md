@@ -41,7 +41,7 @@ A folder of Parquet or Avro files read as one table.
 
 Writes, and Arrow results in your classes.
 
-- [ ] Storage writes: write, conditional write, delete (local, S3, Azure)
+- [x] Storage writes: write, conditional write, delete (local, S3, Azure)
 - [ ] Parquet write: row group and file size, Snappy/Zstd, statistics
 - [ ] Partitioned dataset write: `PartitionBy`, modes append / overwrite partitions / error if exists
 - [ ] Public API: Arrow `RecordBatch` to C# classes and back

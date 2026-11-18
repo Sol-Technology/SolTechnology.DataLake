@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Runtime.CompilerServices;
 using Amazon.S3;
 using Amazon.S3.Model;
@@ -79,6 +80,121 @@ public sealed class S3Storage(IAmazonS3 client) : ILakeStorage
         while (total < buffer.Length)
         {
             var read = await response.ResponseStream.ReadAsync(buffer[total..], cancellationToken).ConfigureAwait(false);
+            if (read == 0) break;
+            total += read;
+        }
+        return total;
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Up to <see cref="PartSize"/> bytes go in one PUT; more go as a multipart upload in parts of that size, so the stream is
+    /// never buffered whole and may be up to 80 GB. <see cref="WriteMode.CreateNew"/> sends <c>If-None-Match: *</c>, which
+    /// Amazon S3, MinIO and Cloudflare R2 support; an S3-compatible store that ignores it overwrites.
+    /// </remarks>
+    public async ValueTask<LakeFile> WriteAsync(string location, Stream content, WriteMode mode = WriteMode.Overwrite, CancellationToken cancellationToken = default)
+    {
+        var (scheme, bucket, key) = Parse(location);
+        var ifNoneMatch = mode == WriteMode.CreateNew ? "*" : null;
+        var buffer = ArrayPool<byte>.Shared.Rent(PartSize);
+        try
+        {
+            var filled = await FillAsync(content, buffer, cancellationToken).ConfigureAwait(false);
+            var length = filled < PartSize
+                ? await PutAsync(bucket, key, buffer, filled, ifNoneMatch, location, cancellationToken).ConfigureAwait(false)
+                : await UploadPartsAsync(bucket, key, content, buffer, ifNoneMatch, location, cancellationToken).ConfigureAwait(false);
+            var name = key[(key.LastIndexOf('/') + 1)..];
+            return new LakeFile($"{scheme}://{bucket}/{key}", length, name);
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
+        }
+    }
+
+    /// <inheritdoc />
+    public async ValueTask DeleteAsync(string location, CancellationToken cancellationToken = default)
+    {
+        var (_, bucket, key) = Parse(location);
+        await client.DeleteObjectAsync(bucket, key, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Size of one PUT and of each part of a multipart upload: 8 MiB.</summary>
+    public const int PartSize = 8 << 20;
+
+    private async Task<long> PutAsync(string bucket, string key, byte[] buffer, int count, string? ifNoneMatch, string location, CancellationToken ct)
+    {
+        try
+        {
+            await client.PutObjectAsync(new PutObjectRequest
+            {
+                BucketName = bucket,
+                Key = key,
+                InputStream = new MemoryStream(buffer, 0, count, writable: false),
+                IfNoneMatch = ifNoneMatch,
+            }, ct).ConfigureAwait(false);
+            return count;
+        }
+        catch (AmazonS3Exception e) when (ifNoneMatch is not null && IsConflict(e))
+        {
+            throw new LakeFileExistsException(location);
+        }
+    }
+
+    private async Task<long> UploadPartsAsync(string bucket, string key, Stream content, byte[] buffer, string? ifNoneMatch, string location, CancellationToken ct)
+    {
+        var upload = await client.InitiateMultipartUploadAsync(new InitiateMultipartUploadRequest { BucketName = bucket, Key = key }, ct).ConfigureAwait(false);
+        try
+        {
+            var parts = new List<PartETag>();
+            var length = 0L;
+            var filled = PartSize;
+            while (filled > 0)
+            {
+                var number = parts.Count + 1;
+                var part = await client.UploadPartAsync(new UploadPartRequest
+                {
+                    BucketName = bucket,
+                    Key = key,
+                    UploadId = upload.UploadId,
+                    PartNumber = number,
+                    PartSize = filled,
+                    InputStream = new MemoryStream(buffer, 0, filled, writable: false),
+                }, ct).ConfigureAwait(false);
+                parts.Add(new PartETag(number, part.ETag));
+                length += filled;
+                filled = await FillAsync(content, buffer, ct).ConfigureAwait(false);
+            }
+
+            await client.CompleteMultipartUploadAsync(new CompleteMultipartUploadRequest
+            {
+                BucketName = bucket,
+                Key = key,
+                UploadId = upload.UploadId,
+                PartETags = parts,
+                IfNoneMatch = ifNoneMatch,
+            }, ct).ConfigureAwait(false);
+            return length;
+        }
+        catch (Exception e)
+        {
+            // Parts of an unfinished upload are stored, and billed, until aborted.
+            await client.AbortMultipartUploadAsync(bucket, key, upload.UploadId, CancellationToken.None).ConfigureAwait(false);
+            if (ifNoneMatch is not null && e is AmazonS3Exception s3 && IsConflict(s3)) throw new LakeFileExistsException(location);
+            throw;
+        }
+    }
+
+    // 412: the object exists. 409: another conditional write to the same key is in progress.
+    private static bool IsConflict(AmazonS3Exception e) =>
+        e.StatusCode is System.Net.HttpStatusCode.PreconditionFailed or System.Net.HttpStatusCode.Conflict;
+
+    private static async Task<int> FillAsync(Stream content, byte[] buffer, CancellationToken ct)
+    {
+        var total = 0;
+        while (total < PartSize)
+        {
+            var read = await content.ReadAsync(buffer.AsMemory(total, PartSize - total), ct).ConfigureAwait(false);
             if (read == 0) break;
             total += read;
         }

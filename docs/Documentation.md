@@ -12,6 +12,7 @@ Version 0.1 (preview). The API can change until 1.0.
 * [Avro files](#avro-files)
 * [Storage: S3](#storage-s3)
 * [Storage: Azure, ADLS Gen2, OneLake](#storage-azure-adls-gen2-onelake)
+* [Storage: writes](#storage-writes)
 * [Telemetry](#telemetry)
 * [Command line](#command-line)
 * [Limits of 0.1](#limits-of-01)
@@ -187,6 +188,26 @@ var dataset = DataLake.Open<Order>("abfss://lake@shop.dfs.core.windows.net/order
 
 A location in another account than the client is an error. ADLS directory markers are skipped.
 
+## Storage: writes
+
+Every storage writes and deletes single files. Datasets and Iceberg tables will be written on top of this; until then it is the place to put your own files.
+
+```csharp
+ILakeStorage storage = new S3Storage(s3);
+await using var parquet = File.OpenRead("part-00000.parquet");
+var file = await storage.WriteAsync("s3://shop/orders/date=2026-10-01/part-00000.parquet", parquet);
+
+await storage.WriteAsync("s3://shop/tables/orders/v2.metadata.json", metadata, WriteMode.CreateNew); // LakeFileExistsException if it exists
+await storage.DeleteAsync("s3://shop/orders/date=2026-10-01/part-00000.parquet");                 // no error if it doesn't
+```
+
+* The stream is read from its current position to the end. It does not have to be seekable and is not disposed.
+* Readers see the old file or the whole new one, never a part. Local disk writes a hidden temporary file next to the target (datasets skip it) and renames it; S3 and Azure commit the upload at the end.
+* `WriteMode.CreateNew` checks and writes in one step, so of two writers creating the same file exactly one wins and the other gets `LakeFileExistsException`. S3 sends `If-None-Match: *` (Amazon S3, MinIO, R2; a store that ignores the header overwrites), Azure the same condition, local disk a hard link (a file system without hard links, such as FAT, falls back to a check and a move).
+* S3 sends up to 8 MiB in one PUT and more as a multipart upload in 8 MiB parts, so files up to 80 GB never sit in memory whole. A failed upload is aborted.
+* Azure creates the missing directories of ADLS Gen2 and OneLake.
+* Your own `ILakeStorage` can stay read-only: `WriteAsync` and `DeleteAsync` have default implementations that throw `NotSupportedException`.
+
 ## Telemetry
 
 ```csharp
@@ -225,7 +246,7 @@ Credentials come from the environment, like the cloud CLIs: the default AWS chai
 
 ## Limits of 0.1
 
-* Read only. Writes come in 0.2, Iceberg tables in 0.3 and 1.0, Delta Lake later.
+* Datasets are read only; storages write single files. Dataset writes come in 0.2, Iceberg tables in 0.3 and 1.0, Delta Lake later.
 * Nested columns are mapped value by value, slower than flat columns.
 * Parquet.Net 6.1 writes the min/max statistics of microsecond and nanosecond timestamps in milliseconds. Those statistics are not used for files written by Parquet.Net, so such filters read the row groups instead of skipping them. Files from Spark, PyIceberg, pyarrow or Trino are fine.
 * A location without data files reads zero rows. On local disk a folder that does not exist is an error.

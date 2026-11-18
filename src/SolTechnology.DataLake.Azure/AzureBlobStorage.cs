@@ -94,6 +94,40 @@ public sealed class AzureBlobStorage(BlobServiceClient service) : ILakeStorage
         return total;
     }
 
+    /// <inheritdoc />
+    /// <remarks>
+    /// One upload through the Blob API; large streams go up in blocks, committed at the end, so readers never see a part.
+    /// With a hierarchical namespace (ADLS Gen2, OneLake) the missing directories are created.
+    /// </remarks>
+    public async ValueTask<LakeFile> WriteAsync(string location, Stream content, WriteMode mode = WriteMode.Overwrite, CancellationToken cancellationToken = default)
+    {
+        var (container, name) = Parse(location);
+        var blob = service.GetBlobContainerClient(container).GetBlobClient(name);
+        var counted = new CountingStream(content);
+        var options = new BlobUploadOptions
+        {
+            Conditions = mode == WriteMode.CreateNew ? new BlobRequestConditions { IfNoneMatch = ETag.All } : null,
+        };
+        try
+        {
+            await blob.UploadAsync(counted, options, cancellationToken).ConfigureAwait(false);
+        }
+        // 409 BlobAlreadyExists or 412 ConditionNotMet, depending on which request of the upload saw the blob.
+        catch (RequestFailedException e) when (mode == WriteMode.CreateNew && e.Status is 409 or 412)
+        {
+            throw new LakeFileExistsException(location);
+        }
+        return new LakeFile(Location(location, container, name), counted.Count, name[(name.LastIndexOf('/') + 1)..]);
+    }
+
+    /// <inheritdoc />
+    public async ValueTask DeleteAsync(string location, CancellationToken cancellationToken = default)
+    {
+        var (container, name) = Parse(location);
+        await service.GetBlobContainerClient(container).GetBlobClient(name)
+            .DeleteIfExistsAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+    }
+
     // Not System.Uri for the path: blob names may contain '#', '%' or spaces.
     private (string Container, string Path) Parse(string location)
     {
