@@ -123,6 +123,8 @@ internal static class Values
 {
     public static int Compare(object a, object b)
     {
+        // Ordinal, like the byte order of Parquet statistics; CompareTo would depend on the culture.
+        if (a is string sa && b is string sb) return string.CompareOrdinal(sa, sb);
         if (a.GetType() == b.GetType() && a is IComparable comparable) return comparable.CompareTo(b);
         if (IsNumber(a) && IsNumber(b)) return System.Convert.ToDecimal(a).CompareTo(System.Convert.ToDecimal(b));
         if (a is Enum && b is Enum && a.GetType() == b.GetType()) return ((IComparable)a).CompareTo(b);

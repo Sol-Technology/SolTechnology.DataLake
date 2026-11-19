@@ -149,6 +149,19 @@ public class DatasetWriteTests
         metrics.RowGroupsSkippedByStatistics.Should().Be(9);
     }
 
+    [Test]
+    public async Task Filters_skip_row_groups_by_text_statistics()
+    {
+        var rows = Enumerable.Range(0, 100).Select(i => new Sale { Id = i, Country = $"c{i / 10:00}" }).ToList();
+        await DataLake.Open<Sale>(_lake.Root).WriteAsync(rows, new DatasetWriteOptions { RowGroupSize = 10 });
+        var metrics = new ScanMetrics();
+
+        var read = await DataLake.Open<Sale>(_lake.Root).Where(s => s.Country == "c07").ReadAsync(metrics).ToListAsync();
+
+        read.Select(r => r.Id).Should().Equal(Enumerable.Range(70, 10).Select(i => (long)i));
+        metrics.RowGroupsSkippedByStatistics.Should().Be(9);
+    }
+
     public sealed class Line
     {
         public string Sku { get; set; } = "";

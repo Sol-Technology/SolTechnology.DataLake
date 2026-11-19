@@ -8,6 +8,9 @@
     <File Path="docs/ROADMAP.md" />
     <File Path="docs/Documentation.md" />
   </Folder>
+  <Folder Name="/samples/">
+    <Project Path="samples/SolTechnology.DataLake.Samples.Adbc/SolTechnology.DataLake.Samples.Adbc.csproj" />
+  </Folder>
   <Folder Name="/spikes/">
     <Project Path="spikes/IcebergSpike/IcebergSpike.csproj" />
     <Project Path="spikes/IcebergSpike.Benchmarks/IcebergSpike.Benchmarks.csproj" />

@@ -67,6 +67,60 @@ public class CliTests
     }
 
     [Test]
+    public async Task Cat_prints_every_row_as_JSON_lines()
+    {
+        var (code, output, _) = await Run("cat", _lake.Root);
+
+        code.Should().Be(0);
+        var rows = output.Split('\n', StringSplitOptions.RemoveEmptyEntries).Select(l => JsonNode.Parse(l)!).ToList();
+        rows.Should().HaveCountGreaterThan(5);
+        rows.Should().OnlyContain(r => r["region"]!.GetValue<string>() == "eu");
+    }
+
+    [Test]
+    public async Task Cat_prints_CSV_with_a_header_and_a_limit()
+    {
+        var sales = DataLake.Open<Sale>(_lake.PathOf("sales"));
+        await sales.WriteAsync([new Sale { Id = 1, Name = "a, \"b\"", Tags = ["x"] }, new Sale { Id = 2 }, new Sale { Id = 3 }],
+            new DatasetWriteOptions { PartitionBy = [nameof(Sale.Country)] });
+
+        var (code, output, _) = await Run("cat", _lake.PathOf("sales"), "--format", "csv", "--limit", "2");
+
+        code.Should().Be(0);
+        output.Split('\n', StringSplitOptions.RemoveEmptyEntries).Should().Equal(
+            "Id,Name,Amount,Tags,Country",
+            "1,\"a, \"\"b\"\"\",1.5,\"[\"\"x\"\"]\",PL",
+            "2,,1.5,,PL");
+    }
+
+    [Test]
+    public async Task Stats_sums_files_rows_partitions_and_column_ranges()
+    {
+        var sales = DataLake.Open<Sale>(_lake.PathOf("sales"));
+        await sales.WriteAsync(Enumerable.Range(0, 30).Select(i => new Sale { Id = i, Name = i % 3 == 0 ? null : $"n{i:00}", Country = i % 2 == 0 ? "PL" : "DE" }),
+            new DatasetWriteOptions { PartitionBy = [nameof(Sale.Country)], RowGroupSize = 10 });
+
+        var (code, output, _) = await Run("stats", _lake.PathOf("sales"));
+
+        code.Should().Be(0);
+        var lines = output.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        lines[0].Should().StartWith("2 files (2 parquet), ").And.EndWith(", 30 rows, 4 row groups");
+        lines[1].Should().Be("partition Country: 2 values (DE, PL)");
+        lines.Should().Contain(l => System.Text.RegularExpressions.Regex.IsMatch(l, @"^Id\s+int64\s+0\s+0\s+29$"));
+        lines.Should().Contain(l => System.Text.RegularExpressions.Regex.IsMatch(l, @"^Name\s+string\s+10\s+n01\s+n29$"));
+        lines.Should().Contain(l => l.StartsWith("Tags[] "));
+    }
+
+    public sealed class Sale
+    {
+        public long Id { get; set; }
+        public string? Name { get; set; }
+        public decimal Amount { get; set; } = 1.5m;
+        public List<string>? Tags { get; set; }
+        public string Country { get; set; } = "PL";
+    }
+
+    [Test]
     public async Task Missing_location_is_exit_code_2()
     {
         var (code, _, error) = await Run("ls", _lake.PathOf("nope"));

@@ -42,6 +42,8 @@ public static class Program
         root.Subcommands.Add(LsCommand(output));
         root.Subcommands.Add(SchemaCommand(output));
         root.Subcommands.Add(HeadCommand(output));
+        root.Subcommands.Add(CatCommand(output));
+        root.Subcommands.Add(StatsCommand(output));
         return root;
     }
 
@@ -82,6 +84,14 @@ public static class Program
             {
                 await output.WriteLineAsync(JsonNode.Parse(AvroConvert.GetSchema(stream))!.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
             }
+            else if (DatasetFiles.FormatOf(file.RelativePath) == FileFormat.Arrow)
+            {
+                using var reader = await SolTechnology.DataLake.Arrow.ArrowConvert.OpenIpcAsync(stream, ct);
+                var schema = await reader.GetSchema(ct);
+                foreach (var field in schema.FieldsList)
+                    await output.WriteLineAsync($"{field.Name}: {field.DataType.Name}{(field.IsNullable ? "" : " not null")}");
+                await output.WriteLineAsync("# Arrow IPC file");
+            }
             else
             {
                 await using var reader = await ParquetReader.CreateAsync(stream, leaveStreamOpen: true, cancellationToken: ct);
@@ -119,6 +129,76 @@ public static class Program
         return command;
     }
 
+    // datalake cat s3://shop/orders/ --format csv
+    private static Command CatCommand(TextWriter output)
+    {
+        var location = LocationArgument();
+        var format = new Option<string>("--format", "-f") { Description = "json (one object per line) or csv.", DefaultValueFactory = _ => "json" };
+        format.AcceptOnlyFromAmong("json", "csv");
+        var limit = new Option<long?>("--limit") { Description = "Stop after this many rows." };
+        var (s3Endpoint, azureConnection) = StorageOptions();
+        var command = new Command("cat", "Every row, partition values included: JSON lines, or CSV with a header (nested values as JSON).")
+            { location, format, limit, s3Endpoint, azureConnection };
+        command.SetAction(async (parse, ct) =>
+        {
+            var storage = StorageFor(parse.GetValue(location)!, parse.GetValue(s3Endpoint), parse.GetValue(azureConnection));
+            var left = parse.GetValue(limit) ?? long.MaxValue;
+            var csv = parse.GetValue(format) == "csv";
+            List<string>? header = null;
+            if (left <= 0) return Success;
+            await foreach (var row in UntypedReader.ReadAsync(storage, parse.GetValue(location)!, ct))
+            {
+                if (!csv)
+                {
+                    await output.WriteLineAsync(ToJson(row)!.ToJsonString(Json));
+                }
+                else
+                {
+                    if (header is null)
+                    {
+                        header = [.. row.Keys];
+                        await output.WriteLineAsync(string.Join(',', header.Select(Csv)));
+                    }
+                    await output.WriteLineAsync(string.Join(',', header.Select(c => Csv(row.TryGetValue(c, out var v) ? Text(v) : ""))));
+                }
+                if (--left == 0) break;
+            }
+            return Success;
+        });
+        return command;
+    }
+
+    // datalake stats s3://shop/orders/
+    private static Command StatsCommand(TextWriter output)
+    {
+        var location = LocationArgument();
+        var (s3Endpoint, azureConnection) = StorageOptions();
+        var command = new Command("stats", "Files, rows, row groups and partitions of a dataset; per column the null count and min / max from Parquet statistics.")
+            { location, s3Endpoint, azureConnection };
+        command.SetAction(async (parse, ct) =>
+        {
+            var storage = StorageFor(parse.GetValue(location)!, parse.GetValue(s3Endpoint), parse.GetValue(azureConnection));
+            var stats = await DatasetStats.CollectAsync(storage, parse.GetValue(location)!, ct);
+            await stats.WriteAsync(output);
+            return Success;
+        });
+        return command;
+    }
+
+    private static string Text(object? value) => value switch
+    {
+        null => "",
+        string s => s,
+        _ => ToJson(value) switch
+        {
+            JsonValue v when v.TryGetValue<string>(out var s) => s,
+            var node => node?.ToJsonString(Json) ?? "",
+        },
+    };
+
+    private static string Csv(string value) =>
+        value.IndexOfAny([',', '"', '\n', '\r']) >= 0 ? $"\"{value.Replace("\"", "\"\"")}\"" : value;
+
     private static Argument<string> LocationArgument() =>
         new("location") { Description = "Dataset location: a local path, s3://bucket/prefix, abfss://container@account.dfs.core.windows.net/path, az://container/path." };
 
@@ -152,7 +232,7 @@ public static class Program
         }
     }
 
-    private static string TypeName(DataField field)
+    internal static string TypeName(DataField field)
     {
         var logical = field.SchemaElement?.LogicalType;
         if (logical?.TIMESTAMP is { } timestamp)
@@ -170,7 +250,7 @@ public static class Program
             unit?.NANOS is not null ? "nanos" : unit?.MICROS is not null ? "micros" : "millis";
     }
 
-    private static string Size(long bytes) => bytes switch
+    internal static string Size(long bytes) => bytes switch
     {
         < 1024 => $"{bytes} B",
         < 1024 * 1024 => string.Create(CultureInfo.InvariantCulture, $"{bytes / 1024.0:0.0} KB"),
@@ -178,7 +258,7 @@ public static class Program
         _ => string.Create(CultureInfo.InvariantCulture, $"{bytes / 1024.0 / 1024 / 1024:0.0} GB"),
     };
 
-    private static JsonNode? ToJson(object? value) => value switch
+    internal static JsonNode? ToJson(object? value) => value switch
     {
         null => null,
         IDictionary<string, object?> record => new JsonObject(record.Select(kv => KeyValuePair.Create(kv.Key, ToJson(kv.Value)))),

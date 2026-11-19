@@ -61,7 +61,9 @@ internal static class ParquetStatistics
             case null:
                 return null;
             case ReadOnlyMemory<char> chars:
-                return chars.ToString();
+                return Ascii(chars.ToString());
+            case string text:
+                return Ascii(text);
             case ReadOnlyMemory<byte> bytes:
                 return bytes.ToArray();
             case BigDecimal big:
@@ -88,6 +90,10 @@ internal static class ParquetStatistics
         // TIME columns and anything else not stored as its own CLR type: no pruning.
         return raw.GetType() == field.ClrType || IsNumber(raw) && IsNumber(field.ClrType) ? raw : null;
     }
+
+    // Text statistics are ordered by UTF-8 bytes, and parquet-mr before 1.8 compared them as signed bytes. For ASCII
+    // both orders and .NET's ordinal order agree; anything else is not used.
+    private static string? Ascii(string text) => System.Text.Ascii.IsValid(text) ? text : null;
 
     private static long? TicksPerUnit(SchemaElement? element, bool trust)
     {
