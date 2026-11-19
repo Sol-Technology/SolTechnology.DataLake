@@ -222,6 +222,62 @@ public class DatasetWriteTests
         read.Should().BeEquivalentTo(rows, o => o.WithStrictOrdering());
     }
 
+    public sealed class NarrowLine
+    {
+        public int? Quantity { get; set; }
+    }
+
+    public sealed class NarrowAddress
+    {
+        public NarrowStreet? Street { get; set; }
+    }
+
+    public sealed class NarrowStreet
+    {
+        public int? Number { get; set; }
+    }
+
+    public sealed class NarrowOrder
+    {
+        public long Id { get; set; }
+        public NarrowLine[]? Lines { get; set; }
+        public NarrowAddress? Address { get; set; }
+        public IReadOnlyDictionary<int, NarrowLine>? ByNumber { get; set; }
+        public IReadOnlyList<IReadOnlyList<long>>? Matrix { get; set; }
+    }
+
+    [Test]
+    public async Task Nested_columns_read_into_narrower_classes_skip_the_rest()
+    {
+        Order[] rows =
+        [
+            new()
+            {
+                Id = 1,
+                Lines = [new Line { Sku = "a", Quantity = 2, Tags = ["x", "y"] }, new Line { Sku = "b", Tags = [] }],
+                Address = new Address { City = "Kraków", Street = new Street { Name = "Długa", Number = 5 } },
+                ByNumber = new() { [7] = new Line { Sku = "c", Quantity = 9, Tags = ["z"] } },
+                Matrix = [[1, 2], [], [3]],
+            },
+            new() { Id = 2, Lines = [], Address = new Address(), ByNumber = [] },
+            new() { Id = 3 },
+        ];
+        await DataLake.Open<Order>(_lake.Root).WriteAsync(rows);
+
+        var read = await DataLake.Open<NarrowOrder>(_lake.Root).ReadAsync().ToListAsync();
+
+        read[0].Lines!.Select(l => l.Quantity).Should().Equal(2, null);
+        read[0].Address!.Street!.Number.Should().Be(5);
+        read[0].ByNumber![7].Quantity.Should().Be(9);
+        read[0].Matrix!.Select(m => m.ToArray()).Should().BeEquivalentTo(new[] { new long[] { 1, 2 }, [], [3] }, o => o.WithStrictOrdering());
+        read[1].Lines.Should().BeEmpty();
+        read[1].Address!.Street.Should().BeNull();
+        read[1].ByNumber.Should().BeEmpty();
+        read[2].Lines.Should().BeNull();
+        read[2].Address.Should().BeNull();
+        read[2].Matrix.Should().BeNull();
+    }
+
     [Test]
     public async Task Nested_timestamp_statistics_are_in_microseconds()
     {

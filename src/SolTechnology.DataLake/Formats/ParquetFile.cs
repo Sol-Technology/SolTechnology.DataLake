@@ -60,10 +60,10 @@ internal static class ParquetFile<T> where T : class
         }
     }
 
-    private static (List<ColumnBinding<T>> Flat, List<NestedBinding<T>> Nested) Bind(ParquetSchema schema, string location, FileScan<T> scan, bool trustTimestamps)
+    private static (List<ColumnBinding<T>> Flat, List<NestedColumnBinding<T>> Nested) Bind(ParquetSchema schema, string location, FileScan<T> scan, bool trustTimestamps)
     {
         var bindings = new List<ColumnBinding<T>>();
-        var nested = new List<NestedBinding<T>>();
+        var nested = new List<NestedColumnBinding<T>>();
         var bound = new HashSet<PropertyMap<T>>();
         foreach (var field in schema.Fields)
         {
@@ -72,7 +72,7 @@ internal static class ParquetFile<T> where T : class
             if (field is DataField { IsArray: false } data)
                 bindings.Add(ColumnBinding<T>.Create(data, property, LogicalOf(data), trustTimestamps, location));
             else
-                nested.Add(NestedBinding<T>.Create(field, property, scan.Map.Naming, location));
+                nested.Add(NestedColumnBinding<T>.Create(field, property, scan.Map.Naming, location));
             bound.Add(property);
         }
 

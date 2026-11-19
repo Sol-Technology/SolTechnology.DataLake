@@ -354,18 +354,29 @@ internal static class NestedBuilder
 }
 
 /// <summary>A top-level nested column assigned to one property of the rows.</summary>
-internal sealed class NestedBinding<T>(PropertyMap<T> property, NestedNode root, DataField[] leaves) where T : class
+internal abstract class NestedColumnBinding<T>(PropertyMap<T> property) where T : class
 {
     public PropertyMap<T> Property { get; } = property;
 
-    public static NestedBinding<T> Create(Field field, PropertyMap<T> property, JsonNamingPolicy? naming, string location)
+    public abstract Task AssignAsync(ParquetRowGroupReader group, T[] rows, CancellationToken ct);
+
+    /// <summary>The typed path when the layout and types allow it, else the general one.</summary>
+    public static NestedColumnBinding<T> Create(Field field, PropertyMap<T> property, JsonNamingPolicy? naming, string location)
     {
+        var typedLeaves = new TypedNested.Leaves();
+        if (TypedNested.TryBuild(field, property.Type, typedLeaves, naming, field.Name) is { } typed)
+            return (NestedColumnBinding<T>)Activator.CreateInstance(typeof(TypedNestedBinding<,>).MakeGenericType(typeof(T), property.Type), property, typed, typedLeaves)!;
+
         var leaves = new List<DataField>();
         var root = NestedBuilder.Build(field, property.Type, leaves, naming, location, field.Name);
         return new NestedBinding<T>(property, root, [.. leaves]);
     }
+}
 
-    public async Task AssignAsync(ParquetRowGroupReader group, T[] rows, CancellationToken ct)
+/// <summary>The general path: boxed values assembled by <see cref="NestedNode"/>s.</summary>
+internal sealed class NestedBinding<T>(PropertyMap<T> property, NestedNode root, DataField[] leaves) : NestedColumnBinding<T>(property) where T : class
+{
+    public override async Task AssignAsync(ParquetRowGroupReader group, T[] rows, CancellationToken ct)
     {
         var values = await NestedColumn.AssembleAsync(group, root, leaves, rows.Length, ct).ConfigureAwait(false);
         for (var r = 0; r < rows.Length; r++) Property.BoxedSetter(rows[r], values[r]);

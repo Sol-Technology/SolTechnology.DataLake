@@ -31,7 +31,7 @@ if (args is ["verify"])
     return;
 }
 
-BenchmarkRunner.Run<DatasetBenchmarks>(args: args);
+BenchmarkSwitcher.FromTypes([typeof(DatasetBenchmarks), typeof(NestedBenchmarks)]).Run(args);
 
 static string Row(Sale s) => $"{s.Id}|{s.Amount}|{s.Product}|{s.Date}|{s.Country}";
 
