@@ -8,7 +8,7 @@ using SolTechnology.DataLake.Storage;
 
 namespace SolTechnology.DataLake;
 
-/// <summary>Entry point: a folder of data files read as one table.</summary>
+/// <summary>Entry point: a folder of data files read (and written) as one table.</summary>
 public static class DataLake
 {
     /// <summary>
@@ -85,6 +85,26 @@ public sealed class Dataset<T> where T : class
         {
             DataLakeTelemetry.Record(metrics.Minus(before), activity);
         }
+    }
+
+    /// <summary>
+    /// Writes <paramref name="rows"/> as Parquet files under the dataset's location, one folder per partition when
+    /// <see cref="DatasetWriteOptions.PartitionBy"/> is set. Columns are named and typed the way <see cref="ReadAsync"/>
+    /// reads them back. The storage must support writes (local disk, <c>S3Storage</c>, <c>AzureBlobStorage</c>).
+    /// </summary>
+    /// <exception cref="IOException">The mode is <see cref="DatasetWriteMode.ErrorIfExists"/> and the location has data files.</exception>
+    public Task<DatasetWriteResult> WriteAsync(IAsyncEnumerable<T> rows, DatasetWriteOptions? options = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(rows);
+        if (_filter is not null) throw new InvalidOperationException("Where filters reads; write to the dataset returned by DataLake.Open.");
+        return new Writing.DatasetWriter<T>(_storage, Location, _options, options ?? new DatasetWriteOptions()).WriteAsync(rows, cancellationToken);
+    }
+
+    /// <inheritdoc cref="WriteAsync(IAsyncEnumerable{T}, DatasetWriteOptions?, CancellationToken)"/>
+    public Task<DatasetWriteResult> WriteAsync(IEnumerable<T> rows, DatasetWriteOptions? options = null, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(rows);
+        return WriteAsync(rows.ToAsyncEnumerable(), options, cancellationToken);
     }
 
     private async IAsyncEnumerable<T> ScanAsync(ScanMetrics metrics, [EnumeratorCancellation] CancellationToken cancellationToken)
