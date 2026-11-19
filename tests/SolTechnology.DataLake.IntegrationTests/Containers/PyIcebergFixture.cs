@@ -17,7 +17,7 @@ public sealed class PyIcebergFixture(TestContainersContext context)
         _image = new ImageFromDockerfileBuilder()
             .WithDockerfileDirectory(Path.Combine(AppContext.BaseDirectory, "Docker", "pyiceberg"))
             .WithDockerfile("Dockerfile")
-            .WithName("soltech-datalake-pyiceberg:0.10.0")
+            .WithName("soltech-datalake-pyiceberg:0.10.0-duckdb-2.0.0-pytz")
             .WithCleanUp(false)
             .Build();
         await _image.CreateAsync(ct).ConfigureAwait(false);

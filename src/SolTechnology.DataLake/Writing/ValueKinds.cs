@@ -72,14 +72,18 @@ internal static class ValueKinds
                 (name, nullable) => new DateTimeDataField(name, DateTimeFormat.Timestamp, isAdjustedToUTC: false, DateTimeTimeUnit.Micros, nullable), timestamp: true);
 
         if (type == typeof(TimeOnly))
-            return Make<TimeOnly, long>(v => v.Ticks / 10, (name, nullable) => new TimeDataField(name, TimeUnitPrecision.Micros, nullable));
+            return Make<TimeOnly, long>(v => v.Ticks / 10, Time);
         if (type == typeof(TimeSpan))
             return Make<TimeSpan, long>(v => v >= TimeSpan.Zero && v < TimeSpan.FromDays(1) ? v.Ticks / 10
                     : throw new InvalidDataException(string.Create(CultureInfo.InvariantCulture, $"Column '{column}': {v} is not a time of day, so it can't be written as TIME.")),
-                (name, nullable) => new TimeDataField(name, TimeUnitPrecision.Micros, nullable));
+                Time);
 
         return null;
     }
+
+    // A time of day, not an instant: isAdjustedToUTC=false, which Iceberg and Spark expect (DuckDB reads true as TIMETZ).
+    private static DataField Time(string name, bool nullable) =>
+        new TimeDataField(name, TimeUnitPrecision.Micros, nullable) { IsAdjustedToUtc = false };
 
     private static ValueKind Same<TValue>() =>
         Make<TValue, TValue>(v => v, (name, nullable) => new DataField(name, typeof(TValue), nullable));

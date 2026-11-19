@@ -33,7 +33,16 @@ internal static class ThriftCompact
 
     public sealed record ThriftMap(byte KeyType, byte ValueType, List<(object Key, object Value)> Entries);
 
-    public static ThriftStruct Read(ReadOnlySpan<byte> bytes) => new Reader(bytes).ReadStruct();
+    public static ThriftStruct Read(ReadOnlySpan<byte> bytes) => Read(bytes, out _);
+
+    /// <summary>Reads one struct from the start of <paramref name="bytes"/>; <paramref name="length"/> is how many bytes it took.</summary>
+    public static ThriftStruct Read(ReadOnlySpan<byte> bytes, out int length)
+    {
+        var reader = new Reader(bytes);
+        var result = reader.ReadStruct();
+        length = reader.Position;
+        return result;
+    }
 
     public static byte[] Write(ThriftStruct value)
     {
@@ -46,6 +55,8 @@ internal static class ThriftCompact
     {
         private readonly ReadOnlySpan<byte> _bytes = bytes;
         private int _position;
+
+        public readonly int Position => _position;
 
         public ThriftStruct ReadStruct()
         {

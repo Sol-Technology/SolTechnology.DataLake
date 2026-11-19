@@ -109,6 +109,7 @@ public class DatasetWriteTests
         fields["State"].SchemaElement!.LogicalType!.STRING.Should().NotBeNull("enums are written by name");
         fields["Key"].SchemaElement!.LogicalType!.UUID.Should().NotBeNull();
         fields["At"].SchemaElement!.LogicalType!.TIME!.Unit.MICROS.Should().NotBeNull();
+        fields["At"].SchemaElement!.LogicalType!.TIME!.IsAdjustedToUTC.Should().BeFalse("a time of day is not an instant");
         foreach (var (name, utc) in new[] { ("CreatedUtc", true), ("Seen", true), ("Zoned", true), ("Local", false) })
         {
             var timestamp = fields[name].SchemaElement!.LogicalType!.TIMESTAMP!;
