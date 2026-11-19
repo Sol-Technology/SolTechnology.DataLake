@@ -423,7 +423,9 @@ internal sealed class TypedNestedBinding<T, TProperty> : NestedColumnBinding<T> 
             rep[l] = field.MaxRepetitionLevel > 0 ? raw.RepetitionLevels.ToArray() : null;
             maxDef[l] = field.MaxDefinitionLevel;
             values[l] = _leaves.Convert[l]?.Invoke(raw) ?? Array.Empty<object>();
-            entries[l] = def[l]?.Length ?? rep[l]?.Length ?? values[l].Length;
+            // Without levels (required all the way down, not repeated) a leaf has one entry per row. Skipped leaves have no
+            // converted values to count.
+            entries[l] = def[l]?.Length ?? rep[l]?.Length ?? rows.Length;
             if (entries[l] > 0 && (rep[l]?[0] ?? 0) != 0)
                 throw new InvalidDataException($"Column '{field.Path}' starts in the middle of a row (repetition level {rep[l]![0]}); the file is corrupt.");
         }

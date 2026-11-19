@@ -162,4 +162,43 @@ public class NestedColumnTests
         IEnumerable items => new JsonArray(items.Cast<object?>().Select(ToJson).ToArray()),
         _ => new JsonObject(value.GetType().GetProperties().Select(p => KeyValuePair.Create(p.Name.ToLowerInvariant(), ToJson(p.GetValue(value))))),
     };
+
+    public sealed class OnlyA
+    {
+        public int A { get; set; }
+    }
+
+    public sealed class WithRequiredStruct
+    {
+        public long Id { get; set; }
+        public OnlyA S { get; set; } = new();
+    }
+
+    [Test]
+    public async Task A_required_struct_reads_into_a_class_without_some_of_its_required_fields()
+    {
+        // required group s { required int32 a; required int32 b; }, as Spark and Iceberg write required structs: the
+        // skipped leaf b has neither definition nor repetition levels.
+        using var lake = new TempDataset();
+        var a = new Parquet.Schema.DataField<int>("a");
+        var b = new Parquet.Schema.DataField<int>("b");
+        var id = new Parquet.Schema.DataField<long>("id");
+        var s = new Parquet.Schema.StructField("s", a, b);
+        // Parquet.Net has no public way to declare a required struct; levels are computed when the schema is built.
+        typeof(Parquet.Schema.Field).GetProperty("IsNullable")!.SetValue(s, false);
+        var schema = new Parquet.Schema.ParquetSchema(id, s);
+        await using (var stream = File.Create(lake.PathOf("x.parquet")))
+        await using (var writer = await Parquet.ParquetWriter.CreateAsync(schema, stream))
+        using (var group = writer.CreateRowGroup())
+        {
+            await group.WriteAsync(schema.DataFields[0], (ReadOnlyMemory<long>)new long[] { 1, 2 });
+            schema.DataFields[2].MaxDefinitionLevel.Should().Be(0, "the struct and its fields are required");
+            await group.WriteAllPartsAsync(schema.DataFields[1], (ReadOnlyMemory<int>)new[] { 10, 20 }, null, null, default);
+            await group.WriteAllPartsAsync(schema.DataFields[2], (ReadOnlyMemory<int>)new[] { 11, 21 }, null, null, default);
+        }
+
+        var rows = await DataLake.Open<WithRequiredStruct>(lake.Root).ReadAsync().ToListAsync();
+
+        rows.Select(r => (r.Id, r.S.A)).Should().Equal((1, 10), (2, 20));
+    }
 }
