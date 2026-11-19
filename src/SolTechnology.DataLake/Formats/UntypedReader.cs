@@ -22,7 +22,12 @@ internal static class UntypedReader
         {
             var partitions = HivePartitions.Parse(file.RelativePath);
             await using var stream = new RangeStream(storage, file);
-            var rows = DatasetFiles.FormatOf(file.RelativePath) == FileFormat.Avro ? Avro(stream, ct) : Parquet(stream, file.Location, ct);
+            var rows = DatasetFiles.FormatOf(file.RelativePath) switch
+            {
+                FileFormat.Avro => Avro(stream, ct),
+                FileFormat.Arrow => Arrow(stream, file.Location, ct),
+                _ => Parquet(stream, file.Location, ct),
+            };
             await foreach (var row in rows.ConfigureAwait(false))
             {
                 foreach (var (key, value) in partitions) row.TryAdd(key, value);
@@ -58,6 +63,27 @@ internal static class UntypedReader
         }
     }
 
+    private static async IAsyncEnumerable<Dictionary<string, object?>> Arrow(Stream stream, string location, [EnumeratorCancellation] CancellationToken ct)
+    {
+        using var reader = await ReadFailure.Guard(() => SolTechnology.DataLake.Arrow.ArrowConvert.OpenIpcAsync(stream, ct), location, null).ConfigureAwait(false);
+        while (await reader.ReadNextRecordBatchAsync(ct).ConfigureAwait(false) is { } batch)
+        {
+            using (batch)
+            {
+                for (var r = 0; r < batch.Length; r++)
+                {
+                    var row = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+                    for (var c = 0; c < batch.ColumnCount; c++)
+                    {
+                        var name = batch.Schema.GetFieldByIndex(c).Name;
+                        row[name] = Plain(SolTechnology.DataLake.Arrow.ArrowValues.Get(batch.Column(c), r, name));
+                    }
+                    yield return row;
+                }
+            }
+        }
+    }
+
     private static async IAsyncEnumerable<Dictionary<string, object?>> Avro(Stream stream, [EnumeratorCancellation] CancellationToken ct)
     {
         AvroComponent.Use();
@@ -70,6 +96,7 @@ internal static class UntypedReader
     {
         ExpandoObject record => ((IDictionary<string, object?>)record).ToDictionary(kv => kv.Key, kv => Plain(kv.Value), StringComparer.OrdinalIgnoreCase),
         IDictionary<string, object?> map => map.ToDictionary(kv => kv.Key, kv => Plain(kv.Value)),
+        List<KeyValuePair<object?, object?>> pairs => pairs.ToDictionary(kv => kv.Key!, kv => Plain(kv.Value)),
         System.Collections.IList list when value is not byte[] => list.Cast<object?>().Select(Plain).ToList(),
         _ => value,
     };

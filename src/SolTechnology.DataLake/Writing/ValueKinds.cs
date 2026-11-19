@@ -57,14 +57,7 @@ internal static class ValueKinds
         }
 
         // Timestamps in microseconds, like Spark and Iceberg; the last digit of a DateTime (100 ns) is dropped.
-        if (type == typeof(DateTime))
-            return Instant<DateTime>(v => v.Kind switch
-            {
-                DateTimeKind.Utc => v,
-                DateTimeKind.Local => v.ToUniversalTime(),
-                _ => throw new InvalidDataException(
-                    $"Column '{column}': DateTime {v:O} has Kind.Unspecified, so the instant is unknown. Use Kind.Utc, or UnzonedDateTime for wall-clock times."),
-            });
+        if (type == typeof(DateTime)) return Instant<DateTime>(v => UtcOf(v, column));
         if (type == typeof(DateTimeOffset)) return Instant<DateTimeOffset>(v => v.UtcDateTime);
         if (type == typeof(DateTimeZone)) return Instant<DateTimeZone>(v => v.UtcDateTime);
         if (type == typeof(UnzonedDateTime))
@@ -106,7 +99,20 @@ internal static class ValueKinds
 
     private static DateTime Truncate(DateTime value) => new(value.Ticks - value.Ticks % 10, value.Kind);
 
-    private static decimal CheckDecimal(decimal value, int precision, int scale, string column)
+    /// <summary>The UTC instant of a <see cref="DateTime"/> (Kind.Utc or Local), <see cref="DateTimeOffset"/> or <see cref="DateTimeZone"/>.</summary>
+    public static DateTime UtcOf(object value, string column) => value switch
+    {
+        DateTime { Kind: DateTimeKind.Utc } v => v,
+        DateTime { Kind: DateTimeKind.Local } v => v.ToUniversalTime(),
+        DateTime v => throw new InvalidDataException(string.Create(CultureInfo.InvariantCulture,
+            $"Column '{column}': DateTime {v:O} has Kind.Unspecified, so the instant is unknown. Use Kind.Utc, or UnzonedDateTime for wall-clock times.")),
+        DateTimeOffset v => v.UtcDateTime,
+        DateTimeZone v => v.UtcDateTime,
+        _ => throw new ArgumentException($"{value.GetType().Name} is not an instant.", nameof(value)),
+    };
+
+    /// <summary>The value unchanged, or an error when it does not fit decimal(<paramref name="precision"/>, <paramref name="scale"/>) without rounding.</summary>
+    public static decimal CheckDecimal(decimal value, int precision, int scale, string column)
     {
         if (value.Scale > scale && decimal.Round(value, scale) != value)
             throw new InvalidDataException(string.Create(CultureInfo.InvariantCulture, $"Column '{column}': {value} has more than {scale} digits after the point. Round it, or set [DecimalPrecision] on the property."));

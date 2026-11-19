@@ -28,7 +28,7 @@ public static class DataLake
 }
 
 /// <summary>
-/// Parquet and Avro files under one location, possibly partitioned hive-style (<c>date=2026-10-29/country=PL/</c>), read into
+/// Parquet, Avro and Arrow IPC files under one location, possibly partitioned hive-style (<c>date=2026-10-29/country=PL/</c>), read into
 /// <typeparamref name="T"/>. Columns map to properties by name; partition values from the path fill properties too.
 /// </summary>
 public sealed class Dataset<T> where T : class
@@ -127,9 +127,12 @@ public sealed class Dataset<T> where T : class
 
             var scan = new FileScan<T>(map, partitions, predicate, residual, metrics);
             await using var stream = new RangeStream(_storage, file, bytes => metrics.BytesRead += bytes);
-            var rows = DatasetFiles.FormatOf(file.RelativePath) == FileFormat.Avro
-                ? AvroFile<T>.ReadAsync(stream, file.Location, scan, cancellationToken)
-                : ParquetFile<T>.ReadAsync(stream, file.Location, scan, cancellationToken);
+            var rows = DatasetFiles.FormatOf(file.RelativePath) switch
+            {
+                FileFormat.Avro => AvroFile<T>.ReadAsync(stream, file.Location, scan, cancellationToken),
+                FileFormat.Arrow => ArrowFile<T>.ReadAsync(stream, file.Location, scan, cancellationToken),
+                _ => ParquetFile<T>.ReadAsync(stream, file.Location, scan, cancellationToken),
+            };
             await foreach (var row in rows.ConfigureAwait(false))
                 yield return row;
         }
@@ -162,7 +165,7 @@ public sealed class Dataset<T> where T : class
     }
 }
 
-internal enum FileFormat { Unknown, Parquet, Avro }
+internal enum FileFormat { Unknown, Parquet, Avro, Arrow }
 
 /// <summary>The data files of a dataset: hidden files (<c>_SUCCESS</c>, <c>.crc</c>, <c>_temporary/</c>) and unknown formats left out, sorted by path.</summary>
 internal static class DatasetFiles
@@ -179,5 +182,7 @@ internal static class DatasetFiles
     public static FileFormat FormatOf(string path) =>
         path.EndsWith(".parquet", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".parq", StringComparison.OrdinalIgnoreCase) ? FileFormat.Parquet
         : path.EndsWith(".avro", StringComparison.OrdinalIgnoreCase) ? FileFormat.Avro
+        : path.EndsWith(".arrow", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".feather", StringComparison.OrdinalIgnoreCase)
+          || path.EndsWith(".ipc", StringComparison.OrdinalIgnoreCase) ? FileFormat.Arrow
         : FileFormat.Unknown;
 }

@@ -9,6 +9,7 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+		<PackageReference Include="Apache.Arrow" />
 		<PackageReference Include="AvroConvert" />
 		<PackageReference Include="Parquet.Net" />
 		<PackageReference Include="SolTechnology.DateTimeZone" />
