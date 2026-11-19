@@ -37,20 +37,20 @@ A folder of Parquet or Avro files read as one table.
 - [x] Docs: [Documentation.md](Documentation.md), S3 and ADLS examples
 - [x] Publish workflow to nuget.org
 
-## 0.2 Arrow
+## 0.2 Arrow ✔
 
 Writes, and Arrow results in your classes.
 
 - [x] Storage writes: write, conditional write, delete (local, S3, Azure)
-- [ ] Parquet write: row group and file size, Snappy/Zstd, statistics
-- [ ] Partitioned dataset write: `PartitionBy`, modes append / overwrite partitions / error if exists
-- [ ] Public API: Arrow `RecordBatch` to C# classes and back
-- [ ] Arrow IPC file and stream
-- [ ] ADBC samples: Databricks SQL, Snowflake, Flight SQL
-- [ ] Interop tests: DuckDB reads what we write
-- [ ] CLI: `cat --format json`, `stats`
-- [ ] Benchmark vs `pyarrow.dataset` on the same data
-- [ ] Faster nested columns (compiled per type, like flat ones)
+- [x] Parquet write: row group and file size, Snappy/Zstd, statistics
+- [x] Partitioned dataset write: `PartitionBy`, modes append / overwrite partitions / error if exists
+- [x] Public API: Arrow `RecordBatch` to C# classes and back
+- [x] Arrow IPC file and stream
+- [x] ADBC samples: Databricks SQL, Snowflake, Flight SQL
+- [x] Interop tests: DuckDB reads what we write
+- [x] CLI: `cat --format json`, `stats`
+- [x] Benchmark vs `pyarrow.dataset` on the same data
+- [x] Faster nested columns (compiled per type, like flat ones)
 
 ## 0.3 Iceberg read
 

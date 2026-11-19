@@ -4,7 +4,7 @@
 		<RootNamespace>SolTechnology.DataLake.Aws</RootNamespace>
 		<AssemblyName>SolTechnology.DataLake.Aws</AssemblyName>
 		<PackageId>SolTechnology.DataLake.Aws</PackageId>
-		<Description>Amazon S3 and S3-compatible storage (MinIO, R2, Ceph) for SolTechnology.DataLake: read datasets from s3:// locations with ranged GETs. $(LicenceSummary)</Description>
+		<Description>Amazon S3 and S3-compatible storage (MinIO, R2, Ceph) for SolTechnology.DataLake: read and write datasets in s3:// locations: ranged GETs, multipart uploads, conditional writes. $(LicenceSummary)</Description>
 		<PackageTags>iceberg apache-iceberg parquet lakehouse datalake s3 aws minio</PackageTags>
 	</PropertyGroup>
 

@@ -7,7 +7,7 @@
 		<AssemblyName>datalake</AssemblyName>
 		<RootNamespace>SolTechnology.DataLake.Cli</RootNamespace>
 		<PackageId>SolTechnology.DataLake.Cli</PackageId>
-		<Description>SolTechnology.DataLake on the command line: list a dataset's files, print its schema, print the first rows as JSON. Local disk, S3 and Azure (ADLS Gen2, OneLake). $(LicenceSummary)</Description>
+		<Description>SolTechnology.DataLake on the command line: list a dataset's files, print its schema and statistics, print rows as JSON or CSV. Local disk, S3 and Azure (ADLS Gen2, OneLake). $(LicenceSummary)</Description>
 		<PackageTags>iceberg apache-iceberg parquet avro lakehouse datalake cli dotnet-tool s3 azure adls onelake</PackageTags>
 	</PropertyGroup>
 

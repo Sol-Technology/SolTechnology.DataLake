@@ -5,7 +5,7 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <Version>0.1.0-preview.1</Version>
+    <Version>0.2.0-preview.1</Version>
     <Authors>Adrian Strugala</Authors>
     <Company>SolTechnology</Company>
     <Product>SolTechnology.DataLake</Product>

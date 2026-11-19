@@ -4,8 +4,8 @@
 		<RootNamespace>SolTechnology.DataLake</RootNamespace>
 		<AssemblyName>SolTechnology.DataLake</AssemblyName>
 		<PackageId>SolTechnology.DataLake</PackageId>
-		<Description>Read Parquet and Avro datasets (and soon Apache Iceberg tables) from .NET into your own classes. No Spark, no JVM. Hive partitions, LINQ filters that skip files and row groups, nested columns, timestamps through SolTechnology.DateTimeZone. $(LicenceSummary)</Description>
-		<PackageTags>iceberg apache-iceberg parquet avro lakehouse datalake data-lake dataset partitions</PackageTags>
+		<Description>Read and write Parquet datasets (and soon Apache Iceberg tables) from .NET with your own classes. No Spark, no JVM. Hive partitions, LINQ filters that skip files and row groups, nested columns, Apache Arrow and ADBC results into classes, timestamps through SolTechnology.DateTimeZone. $(LicenceSummary)</Description>
+		<PackageTags>iceberg apache-iceberg parquet avro arrow adbc lakehouse datalake data-lake dataset partitions</PackageTags>
 	</PropertyGroup>
 
 	<ItemGroup>

@@ -1,6 +1,6 @@
 # SolTechnology.DataLake documentation
 
-Version 0.1 (preview). The API can change until 1.0.
+Version 0.2 (preview). The API can change until 1.0.
 
 * [Install](#install)
 * [Open a dataset](#open-a-dataset)
@@ -10,12 +10,15 @@ Version 0.1 (preview). The API can change until 1.0.
 * [Nested columns](#nested-columns)
 * [Filters](#filters)
 * [Avro files](#avro-files)
+* [Arrow files](#arrow-files)
+* [Write a dataset](#write-a-dataset)
+* [Apache Arrow and ADBC](#apache-arrow-and-adbc)
 * [Storage: S3](#storage-s3)
 * [Storage: Azure, ADLS Gen2, OneLake](#storage-azure-adls-gen2-onelake)
 * [Storage: writes](#storage-writes)
 * [Telemetry](#telemetry)
 * [Command line](#command-line)
-* [Limits of 0.1](#limits-of-01)
+* [Limits of 0.2](#limits-of-02)
 
 ## Install
 
@@ -30,7 +33,7 @@ dotnet tool install -g SolTechnology.DataLake.Cli --prerelease  # datalake
 
 ## Open a dataset
 
-A dataset is every Parquet (`.parquet`, `.parq`) and Avro (`.avro`) file under one location, read as one table into your class. The location can also be one file.
+A dataset is every Parquet (`.parquet`, `.parq`), Avro (`.avro`) and Arrow IPC (`.arrow`, `.feather`, `.ipc`) file under one location, read as one table into your class. The location can also be one file.
 
 ```csharp
 var dataset = DataLake.Open<Order>("/data/orders");            // local path or file://
@@ -137,7 +140,7 @@ var rows = DataLake.Open<Order>(location)
 `Where` calls are combined with `&&`. Every filter is applied to every row, so results are always right. On top of that, comparisons of a property with a value skip data before reading it:
 
 * **files**, by partition values from the path,
-* **row groups** (Parquet), by min/max and null counts in the file.
+* **row groups** (Parquet), by min/max and null counts in the file. Text statistics are used when both ends are ASCII: their byte order, the one older writers got wrong for other characters, and .NET's ordinal order are then the same.
 
 What skips: `==`, `!=`, `<`, `<=`, `>`, `>=` against a constant or a captured variable, `&&`, `||`, `!`, `list.Contains(x.P)` and `array.Contains(x.P)`, a bool property alone. Anything else (`x.Name.StartsWith("A")`, `x.A + x.B > 5`) still filters, row by row, and does not stop the parts around it from skipping.
 
@@ -156,6 +159,86 @@ var rows = await dataset.ReadAsync(metrics).ToListAsync();
 Avro object container files in a dataset are read through AvroConvert and mapped with the same rules as Parquet: names, nullability, partitions, types (`timestamp-*` is UTC, `local-timestamp-*` has no zone, `date`, `time-*`, `decimal`, `uuid`, enums by symbol name, records, arrays, maps).
 
 Avro has no statistics, so only partitions skip files. AvroConvert comes with DataLake under the DataLake licence, so it doesn't write its own licence notice. A licence you declare for AvroConvert itself (`AvroConvert.License`) is still checked by AvroConvert.
+
+## Arrow files
+
+Arrow IPC files (Feather v2) in a dataset are read batch by batch with the same mapping as Parquet. They have no statistics, so only partitions skip files. For a single file or stream outside a dataset, see [Apache Arrow and ADBC](#apache-arrow-and-adbc).
+
+## Write a dataset
+
+```csharp
+var orders = DataLake.Open<Order>("s3://shop/orders/", options);
+
+await orders.WriteAsync(rows, new DatasetWriteOptions
+{
+    PartitionBy = [nameof(Order.Date), nameof(Order.Country)],   // s3://shop/orders/Date=2026-10-29/Country=PL/part-00001-....snappy.parquet
+    Mode = DatasetWriteMode.OverwritePartitions,
+});
+```
+
+`rows` is an `IEnumerable<T>` or `IAsyncEnumerable<T>`. Every mapped property is a column, named like on read (`[DataMember]`, `ColumnNaming`), so `ReadAsync` reads the files back into the same class. The result lists the files written and deleted.
+
+`DatasetWriteOptions`:
+
+| Option | Default | |
+|---|---|---|
+| `PartitionBy` | none | properties that become folders, in this order. Strings, integers, `bool`, `DateOnly`, `Guid`, enums. Values are in the path, not in the files |
+| `Mode` | `ErrorIfExists` | `ErrorIfExists`: fail if the location has data files. `Append`: add files. `OverwritePartitions`: replace the partitions this write has rows for, keep the others (without `PartitionBy`, the whole dataset) |
+| `Compression` | `Snappy` | `Snappy`, `Zstd`, `Gzip`, `None` |
+| `RowGroupSize` | 131 072 rows | each partition being written keeps this many rows in memory |
+| `TargetFileSize` | 512 MiB | a file is closed after the row group that crosses it |
+
+Types written, chosen so Spark, Trino, DuckDB, pyarrow and Iceberg read them as what they are:
+
+| Property | Column |
+|---|---|
+| `bool`, integers, `float`, `double` | the same type (`ushort` as UINT_16, ...) |
+| `decimal` | decimal(38, 18), or `[DecimalPrecision(10, 2)]`. A value with more fractional digits or too many integer digits is an error, never rounded |
+| `string`, enum | string (enums by name) |
+| `byte[]` | binary |
+| `Guid` | UUID |
+| `DateOnly` | date |
+| `TimeOnly`, `TimeSpan` (a time of day) | time(micros), not adjusted to UTC |
+| `DateTimeZone`, `DateTimeOffset`, `DateTime` (`Kind.Utc` or `Local`) | timestamp(micros, UTC). A `DateTime` with `Kind.Unspecified` is an error: the instant is unknown |
+| `UnzonedDateTime` | timestamp(micros) without a zone |
+| class, list, array, dictionary | struct, list, map, any depth. A class can't contain itself |
+
+* Files are written to a local temporary file and uploaded with `WriteMode.CreateNew`, so a write never replaces a file it did not create, and readers never see half a file.
+* Partition values are escaped like Hive does (`a/b` is `a%2Fb`); null and the empty string are `__HIVE_DEFAULT_PARTITION__`, which reads back as null.
+* `OverwritePartitions` deletes the old files after the new ones are written, so a reader in between sees both. A table format makes that atomic; that is what Iceberg writes in 1.0 are for.
+* Timestamps are stored in microseconds, so the last digit of a .NET tick (100 ns) is dropped.
+* Parquet.Net 6.1 writes min/max of microsecond timestamps in milliseconds, which makes engines that prune by statistics skip matching rows. DataLake fixes them in the footer and the page headers of every file it writes, and checks that DuckDB and pyarrow filter them correctly.
+
+## Apache Arrow and ADBC
+
+`ArrowConvert` maps Arrow data to your classes and back, with the rules of this page (names, types, nested columns, no lossy conversions):
+
+```csharp
+IReadOnlyList<Order> rows = ArrowConvert.Deserialize<Order>(recordBatch);
+RecordBatch batch = ArrowConvert.Serialize(orders);
+Schema schema = ArrowConvert.SchemaOf<Order>();
+
+await foreach (var order in ArrowConvert.DeserializeAsync<Order>(arrowArrayStream)) { }      // IArrowArrayStream
+await foreach (var order in ArrowConvert.ReadIpcAsync<Order>(File.OpenRead("orders.arrow"))) { }
+await ArrowConvert.WriteIpcAsync(stream, orders, ArrowIpcFormat.File);                       // or Stream
+```
+
+[ADBC](https://arrow.apache.org/adbc/) drivers return query results as an `IArrowArrayStream`, so Databricks SQL, Snowflake, BigQuery and any Flight SQL server land in your types:
+
+```csharp
+using var database = new DatabricksDriver().Open(parameters);
+using var connection = database.Connect(new Dictionary<string, string>());
+using var statement = connection.CreateStatement();
+statement.SqlQuery = "SELECT * FROM samples.nyctaxi.trips";
+var result = await statement.ExecuteQueryAsync();
+await foreach (var trip in ArrowConvert.DeserializeAsync<Trip>(result.Stream!)) { }
+```
+
+Samples for Databricks, Snowflake and Flight SQL: [samples/SolTechnology.DataLake.Samples.Adbc](../samples/SolTechnology.DataLake.Samples.Adbc/README.md).
+
+* Read: integers, floats, half floats, booleans, (large / view) strings and binaries, decimal32 to decimal256 (into `decimal` when it fits), UUID, date32/64, time32/64, timestamps in any unit (with a time zone: an instant; without: wall-clock), durations, lists (also large and fixed size), structs, maps, dictionary-encoded columns.
+* Written: the Parquet types above, as Arrow types: timestamp(us, "UTC") / timestamp(us), decimal128, the `arrow.uuid` extension, time64(us), `TimeSpan` as duration(us).
+* `ArrowOptions`: `ColumnNaming`, and `BatchSize` (rows per batch when writing IPC, 65 536).
 
 ## Storage: S3
 
@@ -190,7 +273,7 @@ A location in another account than the client is an error. ADLS directory marker
 
 ## Storage: writes
 
-Every storage writes and deletes single files. Datasets and Iceberg tables will be written on top of this; until then it is the place to put your own files.
+Every storage writes and deletes single files. [Dataset writes](#write-a-dataset) use this, and Iceberg tables will; it is also the place to put your own files.
 
 ```csharp
 ILakeStorage storage = new S3Storage(s3);
@@ -242,15 +325,32 @@ $ datalake head s3://shop/orders/ -n 3
 {"id":1,"amount":9.99,"created_at":"2026-10-29T12:30:15.123456Z","lines":[{"sku":"x"}],"date":"2026-10-01","country":"DE"}
 ```
 
+```
+$ datalake cat s3://shop/orders/ --format csv --limit 1000 > orders.csv
+
+$ datalake stats s3://shop/orders/
+90 files (90 parquet), 5.4 MB, 900,000 rows, 180 row groups
+partition date: 30 values (2026-10-01, 2026-10-02, 2026-10-03, 2026-10-04, 2026-10-05, ...)
+partition country: 3 values (DE, PL, US)
+column        type                    nulls  min                  max
+id            int64                       0  0                    899999
+amount        decimal(10, 2)          90000  0.01                 8999.99
+lines[].sku   string                      0  sku-000              sku-499
+```
+
+`cat` prints every row as JSON lines, or CSV with a header (nested values as JSON). `stats` sums the Parquet footers without reading data pages; Avro and Arrow files are counted row by row. A column whose range is missing in some row group shows `?`.
+
 Credentials come from the environment, like the cloud CLIs: the default AWS chain for `s3://` (`--s3-endpoint` for MinIO), `--azure-connection-string`, `AZURE_STORAGE_CONNECTION_STRING` or `DefaultAzureCredential` for Azure. Exit code 2 on errors.
 
-## Limits of 0.1
+## Limits of 0.2
 
-* Datasets are read only; storages write single files. Dataset writes come in 0.2, Iceberg tables in 0.3 and 1.0, Delta Lake later.
-* Nested columns are mapped value by value, slower than flat columns.
-* Parquet.Net 6.1 writes the min/max statistics of microsecond and nanosecond timestamps in milliseconds. Those statistics are not used for files written by Parquet.Net, so such filters read the row groups instead of skipping them. Files from Spark, PyIceberg, pyarrow or Trino are fine.
+* Iceberg tables come in 0.3 (read) and 1.0 (write), Delta Lake later. Dataset writes are plain Parquet files: no transactions, no schema checks against files already there.
+* Writes produce Parquet only; Avro and Arrow files are read, not written into datasets (`ArrowConvert.WriteIpcAsync` writes single Arrow files).
+* Nested columns in legacy layouts (repeated fields without a LIST group, two-level lists) and into `object` or `Dictionary<string, object?>` still go value by value, slower than typed ones.
+* Parquet.Net 6.1 writes the min/max statistics of microsecond and nanosecond timestamps in milliseconds. Those statistics are not used for files written by Parquet.Net directly, so such filters read the row groups instead of skipping them. Files DataLake writes have them fixed; files from Spark, PyIceberg, pyarrow or Trino are fine.
 * A location without data files reads zero rows. On local disk a folder that does not exist is an error.
 * Tested against Silo (a MinIO fork) and Azurite in Docker. ADLS Gen2, OneLake and R2 use the same APIs but were not tested against the real services yet.
+* The ADBC samples compile in CI but run only against your own accounts.
 
 ## Compatibility
 

@@ -7,7 +7,7 @@
  <a href="./LICENSE.md"><img src="https://img.shields.io/badge/licence-PolyForm%20NC%20%7C%20Small%20Business%20%7C%20Commercial-2F7D7A.svg"></a>
 </p>
 
-> **Status: 0.1 preview, not on NuGet yet.** It reads Parquet and Avro datasets from local disk, S3 and Azure. Iceberg tables come in 0.3. The API can change until 1.0.
+> **Status: 0.2 preview, not on NuGet yet.** It reads and writes Parquet datasets on local disk, S3 and Azure, and maps Apache Arrow (ADBC results, IPC files) to your classes. Iceberg tables come in 0.3. The API can change until 1.0.
 
 ## Why
 
@@ -44,13 +44,15 @@ await foreach (var order in orders.ReadAsync())
 }
 ```
 
-What 0.1 does:
-* **Datasets** - a folder of Parquet or Avro files is one table. Hive partitions (`date=…/country=…`) fill properties too
+What it does:
+* **Datasets** - a folder of Parquet, Avro or Arrow files is one table. Hive partitions (`date=…/country=…`) fill properties too
 * **Skips what it can** - a LINQ filter skips whole files by partition and whole row groups by min/max statistics; the rest is filtered row by row. One day of 30 reads [33x faster](benchmarks/SolTechnology.DataLake.Benchmarks/README.md) than Parquet.Net file by file
 * **Your classes** - columns map to properties by name (`[DataMember]`, snake_case policy, any case). Structs, lists and maps map to nested classes, lists and dictionaries
 * **No guessing** - a UTC timestamp reads into `DateTimeZone` or `DateTimeOffset`, one without a zone into `UnzonedDateTime`. A missing column, a null in a non-nullable property or a lossy conversion is an error that says what to change
 * **S3 and Azure** - ranged reads, so a skipped file costs nothing. S3-compatible storage (MinIO, R2) and ADLS Gen2 / OneLake through the Blob API
-* **`datalake` CLI** - `ls`, `schema`, `head` for any location
+* **Writes** - `WriteAsync` turns your classes into Parquet files, partitioned hive-style, appending or overwriting partitions. Types and statistics that Spark, Trino, DuckDB and pyarrow read right (checked in CI)
+* **Apache Arrow** - record batches, IPC files and ADBC query results (Databricks SQL, Snowflake, Flight SQL) into your classes and back
+* **`datalake` CLI** - `ls`, `schema`, `head`, `cat`, `stats` for any location
 * **OpenTelemetry** - every read is a `datalake.scan` activity with files, row groups and bytes skipped and read
 
 Full documentation: [docs/Documentation.md](./docs/Documentation.md).
@@ -60,7 +62,7 @@ Full documentation: [docs/Documentation.md](./docs/Documentation.md).
 | Version | What you get |
 |---|---|
 | 0.1 ✔ | Parquet and Avro datasets on local disk, S3 and ADLS Gen2 / OneLake: hive partitions, filters that skip files and row groups, nested columns, CLI |
-| 0.2 | Partitioned writes. Apache Arrow to C# classes and back, so ADBC results (Databricks SQL, Snowflake, Flight SQL) land in your types |
+| 0.2 ✔ | Partitioned writes. Apache Arrow to C# classes and back, so ADBC results (Databricks SQL, Snowflake, Flight SQL) land in your types |
 | 0.3 | Iceberg tables from a REST catalog (Polaris, Lakekeeper, Nessie, Unity Catalog, AWS Glue, S3 Tables): scans, time travel, schema evolution, delete files |
 | 1.0 | Iceberg writes: create a table from a class, append, overwrite partitions |
 | later | Delta Lake |
@@ -73,7 +75,7 @@ Step by step: [docs/ROADMAP.md](./docs/ROADMAP.md).
 
 | Package | What is inside |
 |---|---|
-| SolTechnology.DataLake | datasets, Parquet, Avro, local disk |
+| SolTechnology.DataLake | datasets, Parquet, Avro, Arrow, local disk |
 | SolTechnology.DataLake.Aws | S3 and S3-compatible storage |
 | SolTechnology.DataLake.Azure | Azure Blob Storage, ADLS Gen2, OneLake |
 | SolTechnology.DataLake.Cli | `datalake` command line tool |
