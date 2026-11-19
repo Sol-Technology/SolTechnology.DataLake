@@ -31,6 +31,14 @@ if (args is ["verify"])
     return;
 }
 
+if (args is ["write", var directory])
+{
+    // The dataset of DatasetBenchmarks, kept on disk for the pyarrow comparison (pyarrow/run.sh).
+    await new DatasetBenchmarks().WriteDataset(directory);
+    Console.WriteLine($"Wrote {directory}");
+    return;
+}
+
 BenchmarkSwitcher.FromTypes([typeof(DatasetBenchmarks), typeof(NestedBenchmarks)]).Run(args);
 
 static string Row(Sale s) => $"{s.Id}|{s.Amount}|{s.Product}|{s.Date}|{s.Country}";
@@ -51,9 +59,11 @@ public class DatasetBenchmarks
     private string _root = "";
 
     [GlobalSetup]
-    public async Task WriteDataset()
+    public Task WriteDataset() => WriteDataset(Path.Combine(Path.GetTempPath(), "datalake-bench", Guid.NewGuid().ToString("N")));
+
+    public async Task WriteDataset(string root)
     {
-        _root = Path.Combine(Path.GetTempPath(), "datalake-bench", Guid.NewGuid().ToString("N"));
+        _root = root;
         var id = new DataField<long>("Id");
         var amount = new DataField<decimal?>("Amount");
         var product = new DataField<string>("Product");
