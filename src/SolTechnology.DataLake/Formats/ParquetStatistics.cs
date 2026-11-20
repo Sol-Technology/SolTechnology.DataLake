@@ -87,6 +87,15 @@ internal static class ParquetStatistics
                 _ => null,
             };
 
+        // DECIMAL stored as INT32 / INT64 (Spark's default up to 18 digits) comes back unscaled.
+        if (field.ClrType == typeof(decimal))
+            return raw is int or long && ScaleOf(field) is { } scale and <= 28
+                ? System.Convert.ToInt64(raw) / Pow10(scale)
+                : raw as decimal?;
+
+        // Unsigned integers are stored signed: anything above the signed maximum reads back negative.
+        if (IsUnsigned(field.SchemaElement)) return null;
+
         // TIME columns and anything else not stored as its own CLR type: no pruning.
         return raw.GetType() == field.ClrType || IsNumber(raw) && IsNumber(field.ClrType) ? raw : null;
     }
@@ -94,6 +103,20 @@ internal static class ParquetStatistics
     // Text statistics are ordered by UTF-8 bytes, and parquet-mr before 1.8 compared them as signed bytes. For ASCII
     // both orders and .NET's ordinal order agree; anything else is not used.
     private static string? Ascii(string text) => System.Text.Ascii.IsValid(text) ? text : null;
+
+    private static int? ScaleOf(DataField field) =>
+        field is DecimalDataField d ? d.Scale : field.SchemaElement?.LogicalType?.DECIMAL?.Scale ?? field.SchemaElement?.Scale;
+
+    private static decimal Pow10(int digits)
+    {
+        var result = 1m;
+        for (var i = 0; i < digits; i++) result *= 10;
+        return result;
+    }
+
+    private static bool IsUnsigned(SchemaElement? element) =>
+        element?.LogicalType?.INTEGER is { IsSigned: false }
+        || element?.ConvertedType is ConvertedType.UINT_8 or ConvertedType.UINT_16 or ConvertedType.UINT_32 or ConvertedType.UINT_64;
 
     private static long? TicksPerUnit(SchemaElement? element, bool trust)
     {

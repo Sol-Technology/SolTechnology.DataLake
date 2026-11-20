@@ -119,6 +119,16 @@ public class CliTests
         public string Country { get; set; } = "PL";
     }
 
+    [TestCase("https://attacker.example/c/x.parquet")]
+    [TestCase("abfss://c@attacker.example/x")]
+    public async Task Azure_credentials_go_only_to_Azure_hosts(string location)
+    {
+        var (code, _, error) = await Run("head", location);
+
+        code.Should().Be(2);
+        error.Should().Contain("not an Azure Storage host");
+    }
+
     [Test]
     public async Task Missing_location_is_exit_code_2()
     {

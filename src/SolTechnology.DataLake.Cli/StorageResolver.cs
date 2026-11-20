@@ -11,6 +11,7 @@ namespace SolTechnology.DataLake.Cli;
 internal static class StorageResolver
 {
     private static readonly string[] AzureSchemes = ["abfss", "abfs", "wasbs", "wasb", "az"];
+    private static readonly string[] AzureHosts = [".blob.core.windows.net", ".dfs.core.windows.net", ".fabric.microsoft.com"];
 
     public static ILakeStorage For(string location, string? s3Endpoint, string? azureConnectionString)
     {
@@ -32,6 +33,10 @@ internal static class StorageResolver
             if (azureConnectionString is not null) return new AzureBlobStorage(new BlobServiceClient(azureConnectionString));
             var account = AccountUrl(location)
                 ?? throw new ArgumentException($"'{location}' does not name an account; pass --azure-connection-string or set AZURE_STORAGE_CONNECTION_STRING.");
+            // Your Azure AD token opens every storage account you can reach: only Azure's own hosts get it.
+            if (!AzureHosts.Any(h => account.Host.EndsWith(h, StringComparison.OrdinalIgnoreCase)))
+                throw new ArgumentException($"'{account.Host}' is not an Azure Storage host, so no Azure credentials are sent to it. " +
+                                            "For an emulator or a custom endpoint pass --azure-connection-string or set AZURE_STORAGE_CONNECTION_STRING.");
             return new AzureBlobStorage(new BlobServiceClient(account, new DefaultAzureCredential()));
         }
 

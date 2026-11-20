@@ -55,6 +55,14 @@ internal sealed class DatasetWriter<T> where T : class
 
         var existing = await ExistingAsync(ct).ConfigureAwait(false);
         CheckLayout(existing);
+        // Everything that can fail about the old files fails here, before a single new file is written.
+        var candidates = mode switch
+        {
+            DatasetWrite.Overwrite => existing.Select(f => (File: f, Partition: "")).ToList(),
+            DatasetWrite.OverwriteWhere => existing.Where(filter!.Matches).Select(f => (File: f, Partition: "")).ToList(),
+            DatasetWrite.ReplacePartitions => existing.Select(f => (File: f, Partition: Canonical(PartitionTexts(f)))).ToList(),
+            _ => [],
+        };
 
         long count = 0;
         try
@@ -62,7 +70,7 @@ internal sealed class DatasetWriter<T> where T : class
             await foreach (var row in rows.WithCancellation(ct).ConfigureAwait(false))
             {
                 ArgumentNullException.ThrowIfNull(row, nameof(rows));
-                if (filter is not null && !filter.Rows(row))
+                if (filter is not null && !filter.Covers(row))
                     throw new InvalidDataException($"A row does not match the filter of the overwrite on '{_spec.Name}' ({where}); it would not be replaced next time.");
                 var values = _keys.Select(k => k.Value(row)).ToArray();
                 var folder = Folder(values);
@@ -89,21 +97,42 @@ internal sealed class DatasetWriter<T> where T : class
         }
 
         var touched = _open.Values.Select(p => p.Canonical).ToHashSet(StringComparer.Ordinal);
-        var removed = new List<LakeFile>();
-        foreach (var file in existing)
-        {
-            var remove = mode switch
-            {
-                DatasetWrite.Overwrite => true,
-                DatasetWrite.ReplacePartitions => touched.Contains(Canonical(PartitionTexts(file))),
-                DatasetWrite.OverwriteWhere => filter!.Matches(file),
-                _ => false,
-            };
-            if (!remove) continue;
-            await _storage.DeleteAsync(file.Location, ct).ConfigureAwait(false);
-            removed.Add(file);
-        }
+        var remove = mode == DatasetWrite.ReplacePartitions
+            ? candidates.Where(c => touched.Contains(c.Partition)).Select(c => c.File).ToList()
+            : candidates.Select(c => c.File).ToList();
+        var removed = await RemoveOldAsync(remove).ConfigureAwait(false);
         return new LakeWriteResult { Written = _written, Removed = removed, Rows = count };
+    }
+
+    // The new files are committed: from here a cancellation would leave both old and new data, so it is not honoured.
+    // If the very first delete fails, nothing has changed yet and the new files go; later failures are reported.
+    private async Task<List<LakeFile>> RemoveOldAsync(List<LakeFile> files)
+    {
+        var removed = new List<LakeFile>();
+        var failed = new List<(LakeFile File, Exception Error)>();
+        foreach (var file in files)
+        {
+            try
+            {
+                await _storage.DeleteAsync(file.Location, CancellationToken.None).ConfigureAwait(false);
+                removed.Add(file);
+            }
+            catch (Exception e) when (e is not OutOfMemoryException)
+            {
+                if (removed.Count == 0 && failed.Count == 0)
+                {
+                    await RemoveWrittenAsync().ConfigureAwait(false);
+                    throw new IOException($"Could not remove {file.Location} from '{_spec.Name}'; the new files were removed again, nothing changed.", e);
+                }
+                failed.Add((file, e));
+            }
+        }
+        if (failed.Count > 0)
+            throw new IOException(
+                $"'{_spec.Name}' has the new data, but {failed.Count} old file(s) could not be removed and are still read: " +
+                $"{string.Join(", ", failed.Select(f => f.File.Location))}. Delete them, or repeat the write.",
+                new AggregateException(failed.Select(f => f.Error)));
+        return removed;
     }
 
     private async Task<List<LakeFile>> ExistingAsync(CancellationToken ct)
@@ -171,17 +200,30 @@ internal sealed class DatasetWriter<T> where T : class
         var predicate = PredicateTranslator.Translate(SpanContains.Rewrite(where));
         var partitionProperties = _keys.Select(k => k.Property.Property.Name).ToHashSet(StringComparer.Ordinal);
         var outside = predicate.Properties().FirstOrDefault(p => !partitionProperties.Contains(p));
+        if (HasEmptyString(predicate))
+            throw new NotSupportedException($"The filter on '{_spec.Name}' compares a partition with \"\", but an empty partition value is stored as Hive's default partition and reads as null. Compare with null instead: {where}.");
         if (HasOpaque(predicate) || outside is not null || !predicate.Properties().Any())
             throw new NotSupportedException(
                 $"The {_provider} provider deletes whole files, so the filter of an overwrite or delete on '{_spec.Name}' must compare partition columns " +
                 $"({(_keys.Length == 0 ? "none declared" : string.Join(", ", _keys.Select(k => k.Property.Property.Name)))}) with values" +
                 $"{(outside is null ? "" : $"; '{outside}' is not one")}: {where}. Rows inside files are not rewritten; a table format (Iceberg) can do that.");
-        return new FilesFilter(predicate, where.Compile(), file =>
+        // Rows are checked on the values they are stored with ("" as null), the same way as the files they replace.
+        return new FilesFilter(predicate, file =>
         {
             var partitions = ParquetDataset<T>.PartitionValues(_map, file);
             return name => ParquetDataset<T>.Exact(partitions, name);
-        }, _spec.Name);
+        }, row => name => _keys.FirstOrDefault(k => k.Property.Property.Name == name) is { } key ? new ColumnFacts.Exact(key.Stored(row)) : null, _spec.Name);
     }
+
+    private static bool HasEmptyString(Predicate predicate) => predicate switch
+    {
+        Predicate.Compare c => c.Value is "",
+        Predicate.In i => i.Values.Any(v => v is ""),
+        Predicate.And a => HasEmptyString(a.Left) || HasEmptyString(a.Right),
+        Predicate.Or o => HasEmptyString(o.Left) || HasEmptyString(o.Right),
+        Predicate.Not n => HasEmptyString(n.Inner),
+        _ => false,
+    };
 
     private static bool HasOpaque(Predicate predicate) => predicate switch
     {
@@ -259,16 +301,16 @@ internal sealed class DatasetWriter<T> where T : class
     }
 
     /// <summary>The filter of an overwrite or delete: which existing files it covers, and whether a new row is inside it.</summary>
-    private sealed class FilesFilter(Predicate predicate, Func<T, bool> rows, Func<LakeFile, Func<string, ColumnFacts?>> facts, string dataset)
+    private sealed class FilesFilter(Predicate predicate, Func<LakeFile, Func<string, ColumnFacts?>> facts, Func<T, Func<string, ColumnFacts?>> rowFacts, string dataset)
     {
-        public Func<T, bool> Rows { get; } = rows;
+        public bool Covers(T row) => predicate.Evaluate(rowFacts(row)) == Tri.True;
 
         public bool Matches(LakeFile file) => predicate.Evaluate(facts(file)) switch
         {
             Tri.True => true,
             Tri.False => false,
             _ => throw new InvalidOperationException(
-                $"Can't tell whether {file.RelativePath} of '{dataset}' matches the filter (its partition values don't compare with the filter's values); nothing was deleted."),
+                $"Can't tell whether {file.RelativePath} of '{dataset}' matches the filter (its partition values don't compare with the filter's values); nothing was written or deleted."),
         };
     }
 }
@@ -300,6 +342,9 @@ internal sealed class PartitionKey<T> where T : class
         var get = Expression.Lambda<Func<T, object?>>(Expression.Convert(Expression.Property(row, info), typeof(object)), row).Compile();
         return new PartitionKey<T> { Property = property, _get = get };
     }
+
+    /// <summary>The value as it reads back: the property value, but null for the empty string (Hive's default partition).</summary>
+    public object? Stored(T row) => _get(row) is "" ? null : _get(row);
 
     /// <summary>The value as folder text before escaping; null for null and the empty string (Hive's default partition).</summary>
     public string? Value(T row) => _get(row) switch

@@ -68,7 +68,7 @@ internal abstract record Predicate
                 _ => Tri.Unknown,
             };
         }
-        catch (Exception e) when (e is ArgumentException or InvalidCastException or NotSupportedException)
+        catch (Exception e) when (e is ArgumentException or InvalidCastException or NotSupportedException or OverflowException)
         {
             return Tri.Unknown;
         }
@@ -85,13 +85,18 @@ internal abstract record Predicate
 
         if (r.AllNull) return op == Op.Ne ? Tri.True : Tri.False;
         if (r.Min is null || r.Max is null) return Tri.Unknown;
+        // Enums are usually stored by name, so statistics are ordered by name, not by the value enums compare by.
+        if (r.Min is Enum || r.Max is Enum) return Tri.Unknown;
+        // NaN is in neither min / max nor the null count, and NaN != x is true while NaN < x is false: with floating
+        // point, "every row passes" is never certain.
+        var floating = Values.IsFloating(r.Min) || Values.IsFloating(r.Max) || Values.IsFloating(value);
 
         var belowMin = Values.Compare(value, r.Min) < 0;
         var aboveMax = Values.Compare(value, r.Max) > 0;
-        var single = Values.Compare(r.Min, r.Max) == 0 && Values.Compare(value, r.Min) == 0;
+        var single = !floating && Values.Compare(r.Min, r.Max) == 0 && Values.Compare(value, r.Min) == 0;
 
         // A row with null fails every comparison except !=.
-        Tri Passes(bool allPass, bool nonePass) => nonePass ? Tri.False : allPass && r.NoNulls ? Tri.True : Tri.Unknown;
+        Tri Passes(bool allPass, bool nonePass) => nonePass ? Tri.False : allPass && r.NoNulls && !floating ? Tri.True : Tri.Unknown;
 
         return op switch
         {
@@ -126,12 +131,22 @@ internal static class Values
         // Ordinal, like the byte order of Parquet statistics; CompareTo would depend on the culture.
         if (a is string sa && b is string sb) return string.CompareOrdinal(sa, sb);
         if (a.GetType() == b.GetType() && a is IComparable comparable) return comparable.CompareTo(b);
-        if (IsNumber(a) && IsNumber(b)) return System.Convert.ToDecimal(a).CompareTo(System.Convert.ToDecimal(b));
-        if (a is Enum && b is Enum && a.GetType() == b.GetType()) return ((IComparable)a).CompareTo(b);
+        // A LINQ comparison with an enum constant arrives as its underlying number: compare enums by value.
+        if ((IsNumber(a) || a is Enum) && (IsNumber(b) || b is Enum))
+        {
+            // Through decimal a float would be rounded to 7 digits and 1e30 would overflow; through double, NaN has no order.
+            if (!IsFloating(a) && !IsFloating(b)) return System.Convert.ToDecimal(a).CompareTo(System.Convert.ToDecimal(b));
+            var x = System.Convert.ToDouble(a);
+            var y = System.Convert.ToDouble(b);
+            if (double.IsNaN(x) || double.IsNaN(y)) throw new NotSupportedException("NaN has no order.");
+            return x.CompareTo(y);
+        }
         throw new NotSupportedException($"Can't compare {a.GetType().Name} with {b.GetType().Name}.");
     }
 
-    private static bool IsNumber(object o) => o is sbyte or byte or short or ushort or int or uint or long or ulong or float or double or decimal;
+    private static bool IsNumber(object o) => o is sbyte or byte or short or ushort or int or uint or long or ulong or float or double or decimal or Half;
+
+    public static bool IsFloating(object? o) => o is float or double or Half;
 }
 
 /// <summary>LINQ expression to <see cref="Predicate"/>. Property access on the parameter, compared with anything that does not depend on it.</summary>
@@ -170,10 +185,34 @@ internal static class PredicateTranslator
             : null;
     }
 
+    // Only conversions that keep every value: (int)x.D == 2 is true for 2.5, so it must not be pruned as D == 2.
     private static string? PropertyOf(Expression e, ParameterExpression p)
     {
-        while (e is UnaryExpression { NodeType: ExpressionType.Convert or ExpressionType.ConvertChecked } u) e = u.Operand;
+        while (e is UnaryExpression { NodeType: ExpressionType.Convert or ExpressionType.ConvertChecked } u && Lossless(u.Operand.Type, u.Type)) e = u.Operand;
         return e is MemberExpression { Member: System.Reflection.PropertyInfo prop } m && m.Expression == p ? prop.Name : null;
+    }
+
+    private static readonly Dictionary<Type, Type[]> Widening = new()
+    {
+        [typeof(sbyte)] = [typeof(short), typeof(int), typeof(long), typeof(float), typeof(double), typeof(decimal)],
+        [typeof(byte)] = [typeof(short), typeof(ushort), typeof(int), typeof(uint), typeof(long), typeof(ulong), typeof(float), typeof(double), typeof(decimal)],
+        [typeof(short)] = [typeof(int), typeof(long), typeof(float), typeof(double), typeof(decimal)],
+        [typeof(ushort)] = [typeof(int), typeof(uint), typeof(long), typeof(ulong), typeof(float), typeof(double), typeof(decimal)],
+        [typeof(int)] = [typeof(long), typeof(double), typeof(decimal)],
+        [typeof(uint)] = [typeof(long), typeof(ulong), typeof(double), typeof(decimal)],
+        [typeof(long)] = [typeof(decimal)],
+        [typeof(ulong)] = [typeof(decimal)],
+        [typeof(float)] = [typeof(double)],
+    };
+
+    private static bool Lossless(Type from, Type to)
+    {
+        from = Nullable.GetUnderlyingType(from) ?? from;
+        to = Nullable.GetUnderlyingType(to) ?? to;
+        if (from == to) return true;
+        if (from.IsEnum && Enum.GetUnderlyingType(from) == to) return true;
+        if (to.IsEnum && Enum.GetUnderlyingType(to) == from) return true;
+        return Widening.TryGetValue(from, out var wider) && wider.Contains(to);
     }
 
     private static bool Independent(Expression e, ParameterExpression p)

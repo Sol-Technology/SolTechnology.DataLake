@@ -42,6 +42,8 @@ internal sealed class TempDataset : IDisposable
         int?[] v => group.WriteAsync(field, (ReadOnlyMemory<int?>)v),
         decimal?[] v => group.WriteAsync(field, (ReadOnlyMemory<decimal?>)v),
         double?[] v => group.WriteAsync(field, (ReadOnlyMemory<double?>)v),
+        double[] v => group.WriteAsync(field, (ReadOnlyMemory<double>)v),
+        float[] v => group.WriteAsync(field, (ReadOnlyMemory<float>)v),
         bool[] v => group.WriteAsync(field, (ReadOnlyMemory<bool>)v),
         DateTime[] v => group.WriteAsync(field, (ReadOnlyMemory<DateTime>)v),
         DateOnly[] v => group.WriteAsync(field, (ReadOnlyMemory<DateOnly>)v),

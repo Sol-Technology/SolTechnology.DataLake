@@ -686,5 +686,102 @@ public class DatasetWriteTests(string provider)
         _memory.Locations.Should().HaveCount(3).And.OnlyContain(l => l.StartsWith("memory://lake/data/Date="));
     }
 
+    // Declared so that the order by value (Us, Eu) differs from the order by name (Eu, Us).
+    public enum Region { Us = 0, Eu = 1 }
+
+    public sealed class Visit
+    {
+        public long Id { get; set; }
+        public Region Region { get; set; }
+        public string? Country { get; set; }
+    }
+
+    [Test]
+    public async Task Enum_partitions_can_be_deleted_and_overwritten_by_filter()
+    {
+        var dataset = Writable<Visit>(v => v.Region);
+        await dataset.AppendAsync([new Visit { Id = 1, Region = Region.Us }, new Visit { Id = 2, Region = Region.Eu }]);
+
+        await dataset.OverwriteAsync([new Visit { Id = 3, Region = Region.Eu }], where: v => v.Region == Region.Eu);
+        (await dataset.ReadAsync().OrderBy(v => v.Id).Select(v => v.Id).ToListAsync()).Should().Equal(1, 3);
+
+        await dataset.DeleteAsync(v => v.Region == Region.Us);
+        (await dataset.ReadAsync().Select(v => v.Id).ToListAsync()).Should().Equal(3);
+    }
+
+    [TestCase("equals")]
+    [TestCase("contains")]
+    public async Task Enum_filters_do_not_skip_row_groups_by_statistics_ordered_by_name(string kind)
+    {
+        var dataset = Writable<Visit>();
+        await dataset.AppendAsync([new Visit { Id = 1, Region = Region.Eu }, new Visit { Id = 2, Region = Region.Us }]);
+        Region[] wanted = [Region.Us];
+        Expression<Func<Visit, bool>> filter = kind == "equals" ? v => v.Region == Region.Us : v => wanted.Contains(v.Region);
+
+        var read = await dataset.Where(filter).ReadAsync().ToListAsync();
+
+        read.Select(v => v.Id).Should().Equal(2);
+    }
+
+    [Test]
+    public async Task An_empty_string_partition_is_null_for_filters_too()
+    {
+        var dataset = Writable<Visit>(v => v.Country);
+        await dataset.AppendAsync([new Visit { Id = 1, Country = "" }, new Visit { Id = 2, Country = "PL" }]);
+
+        var byEmpty = () => dataset.OverwriteAsync([new Visit { Id = 3, Country = "" }], where: v => v.Country == "");
+        (await byEmpty.Should().ThrowAsync<NotSupportedException>()).WithMessage("*Hive's default partition*Compare with null*");
+
+        await dataset.OverwriteAsync([new Visit { Id = 3, Country = "" }], where: v => v.Country == null);
+        (await dataset.ReadAsync().OrderBy(v => v.Id).Select(v => v.Id).ToListAsync()).Should().Equal(2, 3);
+    }
+
+    [Test]
+    public async Task When_the_first_old_file_can_not_be_removed_nothing_changes()
+    {
+        var storage = new FlakyDeletes(new MemoryStorage(), failAfter: 0);
+        var dataset = LakeContext.Create(o => o.UseParquet("memory://lake", storage), m => m.Dataset<Sale>("data").PartitionBy(s => s.Date)).Dataset<Sale>("data");
+        await dataset.AppendAsync(Sales(30));
+        storage.Arm();
+
+        var overwrite = () => dataset.OverwriteAsync(Sales(3, 100));
+
+        (await overwrite.Should().ThrowAsync<IOException>()).WithMessage("*new files were removed again, nothing changed*");
+        (await dataset.ReadAsync().Select(s => s.Id).ToListAsync()).Should().BeEquivalentTo(Enumerable.Range(0, 30).Select(i => (long)i));
+    }
+
+    [Test]
+    public async Task When_a_later_old_file_can_not_be_removed_the_error_lists_it()
+    {
+        var storage = new FlakyDeletes(new MemoryStorage(), failAfter: 1);
+        var dataset = LakeContext.Create(o => o.UseParquet("memory://lake", storage), m => m.Dataset<Sale>("data").PartitionBy(s => s.Date)).Dataset<Sale>("data");
+        await dataset.AppendAsync(Sales(30));
+        storage.Arm();
+
+        var overwrite = () => dataset.OverwriteAsync(Sales(3, 100));
+
+        (await overwrite.Should().ThrowAsync<IOException>()).WithMessage("*has the new data, but 2 old file(s) could not be removed*Date=2026-10-0*");
+    }
+
+    private sealed class FlakyDeletes(MemoryStorage inner, int failAfter) : ILakeStorage
+    {
+        private HashSet<string> _old = [];
+        private int _deletes;
+
+        // From now on, deleting the files that exist now fails after the first failAfter; new files delete fine.
+        public void Arm() => _old = inner.Locations.ToHashSet();
+        public bool CanHandle(string location) => inner.CanHandle(location);
+        public IAsyncEnumerable<LakeFile> ListAsync(string location, CancellationToken ct = default) => inner.ListAsync(location, ct);
+        public ValueTask<int> ReadAsync(LakeFile file, long offset, Memory<byte> buffer, CancellationToken ct = default) => inner.ReadAsync(file, offset, buffer, ct);
+        public ValueTask<LakeFile> WriteAsync(string location, Stream content, WriteMode mode = WriteMode.Overwrite, CancellationToken ct = default) =>
+            inner.WriteAsync(location, content, mode, ct);
+
+        public ValueTask DeleteAsync(string location, CancellationToken ct = default)
+        {
+            if (_old.Contains(location) && _deletes++ >= failAfter) throw new IOException("storage is down");
+            return inner.DeleteAsync(location, ct);
+        }
+    }
+
     private static long Micros(DateTime utc) => (utc.Ticks - DateTime.UnixEpoch.Ticks) / 10;
 }

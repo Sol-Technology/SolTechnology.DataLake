@@ -232,7 +232,7 @@ var rows = lake.Orders
 * **files**, by partition values from the path,
 * **row groups** (Parquet), by min/max and null counts in the file. Text statistics are used when both ends are ASCII: their byte order, the one older writers got wrong for other characters, and .NET's ordinal order are then the same.
 
-What skips: `==`, `!=`, `<`, `<=`, `>`, `>=` against a constant or a captured variable, `&&`, `||`, `!`, `list.Contains(x.P)` and `array.Contains(x.P)`, a bool property alone. Anything else (`x.Name.StartsWith("A")`, `x.A + x.B > 5`) still filters, row by row, and does not stop the parts around it from skipping.
+What skips: `==`, `!=`, `<`, `<=`, `>`, `>=` against a constant or a captured variable, `&&`, `||`, `!`, `list.Contains(x.P)` and `array.Contains(x.P)`, a bool property alone. Anything else (`x.Name.StartsWith("A")`, `x.A + x.B > 5`) still filters, row by row, and does not stop the parts around it from skipping. Some comparisons filter row by row on purpose, because skipping could lose rows: a cast that loses values (`(int)x.Price == 2`), floating-point `!=` and negations (NaN is in no statistic), and enums against row group statistics (enums are stored by name, statistics are ordered by name).
 
 Nulls work like in C#: `x.Amount > 5` is false for null, `x.Amount != 5` is true for null, `x.Amount == null` matches nulls.
 
