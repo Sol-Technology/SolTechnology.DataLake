@@ -19,7 +19,7 @@ namespace SolTechnology.DataLake.Azure;
 /// <example>
 /// <code>
 /// var blobs = new BlobServiceClient(new Uri("https://shop.blob.core.windows.net"), new DefaultAzureCredential());
-/// var orders = DataLake.Open&lt;Order&gt;("abfss://lake@shop.dfs.core.windows.net/orders/", new DataLakeOptions { Storage = new AzureBlobStorage(blobs) });
+/// services.AddDataLake&lt;ShopLake&gt;(o => o.UseParquet("abfss://lake@shop.dfs.core.windows.net/", new AzureBlobStorage(blobs)));
 /// </code>
 /// </example>
 public sealed class AzureBlobStorage(BlobServiceClient service) : ILakeStorage

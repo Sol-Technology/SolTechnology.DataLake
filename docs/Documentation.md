@@ -2,23 +2,24 @@
 
 Version 0.2 (preview). The API can change until 1.0.
 
+This page is what every provider shares. What a provider stores, how and at what cost: [Parquet](providers/Parquet.md), [InMemory](providers/InMemory.md). Iceberg comes in 0.3.
+
 * [Install](#install)
-* [Open a dataset](#open-a-dataset)
+* [Contexts](#contexts)
+* [Read a dataset](#read-a-dataset)
+* [Write a dataset](#write-a-dataset)
+* [Tests](#tests)
+* [A quick look: Dataset.Open](#a-quick-look-datasetopen)
 * [Partitions](#partitions)
 * [Columns and properties](#columns-and-properties)
 * [Types](#types)
 * [Nested columns](#nested-columns)
 * [Filters](#filters)
-* [Avro files](#avro-files)
-* [Arrow files](#arrow-files)
-* [Write a dataset](#write-a-dataset)
 * [Apache Arrow and ADBC](#apache-arrow-and-adbc)
-* [Storage: S3](#storage-s3)
-* [Storage: Azure, ADLS Gen2, OneLake](#storage-azure-adls-gen2-onelake)
-* [Storage: writes](#storage-writes)
 * [Telemetry](#telemetry)
 * [Command line](#command-line)
 * [Limits of 0.2](#limits-of-02)
+* [Compatibility](#compatibility)
 
 ## Install
 
@@ -31,24 +32,111 @@ dotnet tool install -g SolTechnology.DataLake.Cli --prerelease  # datalake
 
 .NET 10.
 
-## Open a dataset
+## Contexts
 
-A dataset is every Parquet (`.parquet`, `.parq`), Avro (`.avro`) and Arrow IPC (`.arrow`, `.feather`, `.ipc`) file under one location, read as one table into your class. The location can also be one file.
+A context is a set of datasets with one provider (the storage technology) behind them, like EF Core's `DbContext` without change tracking: reads stream, writes go straight to storage.
 
 ```csharp
-var dataset = DataLake.Open<Order>("/data/orders");            // local path or file://
-await foreach (var order in dataset.ReadAsync())
+public interface IShopLake : IDataLake
 {
+    IDataset<Order> Orders { get; }
 }
 
-var one = DataLake.Open<Order>("s3://shop/export/orders.parquet", options);   // a single file
+public class ShopLake(LakeContextOptions<ShopLake> options) : LakeContext(options), IShopLake
+{
+    public IDataset<Order> Orders => Dataset<Order>("orders");
+
+    protected override void OnModelCreating(LakeModelBuilder model) =>
+        model.Dataset<Order>("orders").PartitionBy(o => o.Date, o => o.Country);
+}
+
+services.AddDataLake<IShopLake, ShopLake>((sp, o) => o
+    .UseParquet("s3://shop/", new S3Storage(sp.GetRequiredService<IAmazonS3>()), p => p.Compression(ParquetCompression.Zstd))
+    .ColumnNaming(JsonNamingPolicy.SnakeCaseLower));
 ```
 
-* Files are read in path order, row groups in file order.
-* Hidden files are left out: names starting with `_` or `.` (`_SUCCESS`, `.part-0.parquet.crc`, `_temporary/`), unless they are a partition (`_x=1/`).
-* A folder named like a file (Spark's `df.write.parquet("orders.parquet")`) is still read as a folder. A single file has no partitions, as partitions come from the path under the opened location.
-* Nothing is read until you enumerate `ReadAsync()`. Opening the same dataset again reads the files again; there is no cache.
-* A file that can't be read (corrupt, or a feature Parquet.Net doesn't support) is an `InvalidDataException` with the file and the column in the message, and the original exception inside.
+* **The provider is the only thing that knows the technology.** `UseParquet(root, storage, ...)` or `UseInMemory()`; the code that reads and writes `lake.Orders` does not change with it. Provider settings go in the provider's own callback; what all providers share (`ColumnNaming`) goes on the builder.
+* **The model** (`OnModelCreating`) declares the datasets that can be written and how they are partitioned. It is built once per context class, on first use. A dataset not in the model can be read, but a write throws: a typo never creates or overwrites data.
+* **Partitioning in the model is for creating a dataset.** An existing dataset partitioned differently is an error on write, never silently rewritten.
+* **Registration**: `AddDataLake<TContext>` or `AddDataLake<TService, TContext>` (your interface resolves to the same instance), with `(sp, o) => ...` when the provider needs services. Singleton: a context holds no per-request state. It does not own or dispose the SDK clients you pass in.
+* **Two technologies side by side** = two context classes, each registered on its own, injected by type or interface. The same model twice (a production and an archive copy) = a subclass, as in EF:
+
+```csharp
+public class ShopLake : LakeContext, IShopLake
+{
+    public ShopLake(LakeContextOptions<ShopLake> options) : base(options) { }
+    protected ShopLake(LakeContextOptions options) : base(options) { }   // for subclasses
+    public IDataset<Order> Orders => Dataset<Order>("orders");
+}
+
+public class ArchiveLake(LakeContextOptions<ArchiveLake> options) : ShopLake(options), IArchiveLake;
+
+services.AddDataLake<IShopLake, ShopLake>(o => o.UseParquet("s3://shop/", s3));
+services.AddDataLake<IArchiveLake, ArchiveLake>(o => o.UseParquet("s3://archive/", s3));
+```
+
+* **Without DI**: `new ShopLake(LakeContextOptions.For<ShopLake>(o => o.UseParquet("/data")))`. **Without a class**, for scripts: `LakeContext.Create(o => o.UseParquet("/data"), m => m.Dataset<Order>("orders"))`.
+* `EnsureCreatedAsync()` creates declared datasets that don't exist yet; folder-based providers have nothing to create.
+
+## Read a dataset
+
+```csharp
+await foreach (var order in lake.Orders.Where(o => o.Date == yesterday && o.Country == "PL").ReadAsync(ct)) { }
+
+long count = await lake.Orders.CountAsync();
+var metrics = new ScanMetrics();
+var rows = await lake.Orders.Where(o => o.Amount > 100m).ReadAsync(metrics).ToListAsync();
+// files 90 (skipped by partition 89), row groups 2 (skipped by statistics 0), rows read 10000, returned 10000, bytes read 61442
+```
+
+* `Where` returns an `IDatasetQuery<T>`: read and count only, so a write through a filter does not compile. `Where` calls combine with `&&`.
+* Nothing is read until you enumerate. There is no cache: reading again reads the storage again.
+* A dataset that does not exist yet reads as empty.
+* What `CountAsync` costs depends on the provider (see its page).
+
+## Write a dataset
+
+The words are the ones Spark, delta-rs and PyIceberg use; `overwrite` means the whole dataset, as everywhere else.
+
+| Method | What it does | No rows |
+|---|---|---|
+| `AppendAsync(rows)` | adds rows | nothing |
+| `OverwriteAsync(rows)` | replaces the whole dataset | empties it |
+| `OverwriteAsync(rows, where: o => ...)` | deletes what the filter matches and adds rows; every row must match the filter too (Delta's `replaceWhere`), else nothing changes | deletes what matches |
+| `ReplacePartitionsAsync(rows)` | replaces only the partitions the rows fall into (Spark's dynamic partition overwrite, PyIceberg's `dynamic_partition_overwrite`); an unpartitioned dataset throws | nothing |
+| `DeleteAsync(where)` | deletes what the filter matches | |
+
+```csharp
+await lake.Orders.AppendAsync(newOrders);
+await lake.Orders.ReplacePartitionsAsync(todaysOrders);
+await lake.Orders.OverwriteAsync(fixedOrders, where: o => o.Date == day);
+```
+
+* `rows` is an `IEnumerable<T>` or an `IAsyncEnumerable<T>`. Every mapped property is a column, named like on read, so the rows read back into the same class.
+* Each write returns a `LakeWriteResult`: the files written, the files removed, the rows.
+* A failed or cancelled write removes the files it already wrote.
+* What a provider can't do throws `NotSupportedException` with what to do instead, never a silent approximation. The Parquet provider, for example, deletes whole files, so the filter of an overwrite or delete must be on partition columns. Each provider's page has the table.
+
+## Tests
+
+* **Your logic**: mock your context's interface (`IShopLake`) or `IDataset<T>`. The interfaces have one method per operation and no optional parameters, so Moq and NSubstitute set them up directly; the shorter calls (`ReadAsync()`, `AppendAsync(IEnumerable<T>)`) are extension methods on top.
+* **Real reads and writes, no disk**: `UseInMemory()`. It is the Parquet provider on memory, not a second implementation, so it behaves like `UseParquet` (types, partitions, errors). See [InMemory](providers/InMemory.md).
+
+```csharp
+var lake = new ShopLake(LakeContextOptions.For<ShopLake>(o => o.UseInMemory()));
+await sut.ImportAsync(lake);
+(await lake.Orders.CountAsync()).Should().Be(3);
+```
+
+## A quick look: Dataset.Open
+
+For one folder or file, without a context. Read-only: it returns an `IDatasetQuery<T>`.
+
+```csharp
+var orders = Dataset.Open<Order>("/data/orders");                                    // local path or file://
+var one = Dataset.Open<Order>("s3://shop/export/orders.parquet", new DataLakeOptions { Storage = new S3Storage(s3) });
+await foreach (var order in orders.Where(o => o.Country == "PL").ReadAsync()) { }
+```
 
 `DataLakeOptions`:
 
@@ -56,6 +144,8 @@ var one = DataLake.Open<Order>("s3://shop/export/orders.parquet", options);   //
 |---|---|---|
 | `Storage` | local disk | an `ILakeStorage` for other locations: `S3Storage`, `AzureBlobStorage`, or your own |
 | `ColumnNaming` | none | `JsonNamingPolicy` for property names without `[DataMember]`, e.g. `JsonNamingPolicy.SnakeCaseLower` for `created_at` |
+
+Unlike a context, a local folder that does not exist is an error here. Which files are read: [Parquet provider](providers/Parquet.md#files).
 
 ## Partitions
 
@@ -132,7 +222,7 @@ Older list layouts are read like pyarrow reads them:
 ## Filters
 
 ```csharp
-var rows = DataLake.Open<Order>(location)
+var rows = lake.Orders
     .Where(o => o.Date >= from && o.Country == "PL")
     .Where(o => o.Amount > 100m);
 ```
@@ -146,68 +236,7 @@ What skips: `==`, `!=`, `<`, `<=`, `>`, `>=` against a constant or a captured va
 
 Nulls work like in C#: `x.Amount > 5` is false for null, `x.Amount != 5` is true for null, `x.Amount == null` matches nulls.
 
-What a read did:
-
-```csharp
-var metrics = new ScanMetrics();
-var rows = await dataset.ReadAsync(metrics).ToListAsync();
-// files 90 (skipped by partition 89), row groups 2 (skipped by statistics 0), rows read 10000, returned 10000, bytes read 61442
-```
-
-## Avro files
-
-Avro object container files in a dataset are read through AvroConvert and mapped with the same rules as Parquet: names, nullability, partitions, types (`timestamp-*` is UTC, `local-timestamp-*` has no zone, `date`, `time-*`, `decimal`, `uuid`, enums by symbol name, records, arrays, maps).
-
-Avro has no statistics, so only partitions skip files. AvroConvert comes with DataLake under the DataLake licence, so it doesn't write its own licence notice. A licence you declare for AvroConvert itself (`AvroConvert.License`) is still checked by AvroConvert.
-
-## Arrow files
-
-Arrow IPC files (Feather v2) in a dataset are read batch by batch with the same mapping as Parquet. They have no statistics, so only partitions skip files. For a single file or stream outside a dataset, see [Apache Arrow and ADBC](#apache-arrow-and-adbc).
-
-## Write a dataset
-
-```csharp
-var orders = DataLake.Open<Order>("s3://shop/orders/", options);
-
-await orders.WriteAsync(rows, new DatasetWriteOptions
-{
-    PartitionBy = [nameof(Order.Date), nameof(Order.Country)],   // s3://shop/orders/Date=2026-10-29/Country=PL/part-00001-....snappy.parquet
-    Mode = DatasetWriteMode.OverwritePartitions,
-});
-```
-
-`rows` is an `IEnumerable<T>` or `IAsyncEnumerable<T>`. Every mapped property is a column, named like on read (`[DataMember]`, `ColumnNaming`), so `ReadAsync` reads the files back into the same class. The result lists the files written and deleted.
-
-`DatasetWriteOptions`:
-
-| Option | Default | |
-|---|---|---|
-| `PartitionBy` | none | properties that become folders, in this order. Strings, integers, `bool`, `DateOnly`, `Guid`, enums. Values are in the path, not in the files |
-| `Mode` | `ErrorIfExists` | `ErrorIfExists`: fail if the location has data files. `Append`: add files. `OverwritePartitions`: replace the partitions this write has rows for, keep the others (without `PartitionBy`, the whole dataset) |
-| `Compression` | `Snappy` | `Snappy`, `Zstd`, `Gzip`, `None` |
-| `RowGroupSize` | 131 072 rows | each partition being written keeps this many rows in memory |
-| `TargetFileSize` | 512 MiB | a file is closed after the row group that crosses it |
-
-Types written, chosen so Spark, Trino, DuckDB, pyarrow and Iceberg read them as what they are:
-
-| Property | Column |
-|---|---|
-| `bool`, integers, `float`, `double` | the same type (`ushort` as UINT_16, ...) |
-| `decimal` | decimal(38, 18), or `[DecimalPrecision(10, 2)]`. A value with more fractional digits or too many integer digits is an error, never rounded |
-| `string`, enum | string (enums by name) |
-| `byte[]` | binary |
-| `Guid` | UUID |
-| `DateOnly` | date |
-| `TimeOnly`, `TimeSpan` (a time of day) | time(micros), not adjusted to UTC |
-| `DateTimeZone`, `DateTimeOffset`, `DateTime` (`Kind.Utc` or `Local`) | timestamp(micros, UTC). A `DateTime` with `Kind.Unspecified` is an error: the instant is unknown |
-| `UnzonedDateTime` | timestamp(micros) without a zone |
-| class, list, array, dictionary | struct, list, map, any depth. A class can't contain itself |
-
-* Files are written to a local temporary file and uploaded with `WriteMode.CreateNew`, so a write never replaces a file it did not create, and readers never see half a file.
-* Partition values are escaped like Hive does (`a/b` is `a%2Fb`); null and the empty string are `__HIVE_DEFAULT_PARTITION__`, which reads back as null.
-* `OverwritePartitions` deletes the old files after the new ones are written, so a reader in between sees both. A table format makes that atomic; that is what Iceberg writes in 1.0 are for.
-* Timestamps are stored in microseconds, so the last digit of a .NET tick (100 ns) is dropped.
-* Parquet.Net 6.1 writes min/max of microsecond timestamps in milliseconds, which makes engines that prune by statistics skip matching rows. DataLake fixes them in the footer and the page headers of every file it writes, and checks that DuckDB and pyarrow filter them correctly.
+What a read skipped and read: `ReadAsync(metrics)`, see [Read a dataset](#read-a-dataset).
 
 ## Apache Arrow and ADBC
 
@@ -240,57 +269,6 @@ Samples for Databricks, Snowflake and Flight SQL: [samples/SolTechnology.DataLak
 * Written: the Parquet types above, as Arrow types: timestamp(us, "UTC") / timestamp(us), decimal128, the `arrow.uuid` extension, time64(us), `TimeSpan` as duration(us).
 * `ArrowOptions`: `ColumnNaming`, and `BatchSize` (rows per batch when writing IPC, 65 536).
 
-## Storage: S3
-
-```csharp
-var s3 = new AmazonS3Client();   // credentials and region from the default AWS chain
-var dataset = DataLake.Open<Order>("s3://shop/orders/", new DataLakeOptions { Storage = new S3Storage(s3) });
-```
-
-* `s3://` and `s3a://` locations.
-* The location is a folder: `s3://shop/orders` does not include `s3://shop/orders_old/`.
-* Files are read with ranged GETs: the Parquet footer, then only the column chunks of row groups that are not skipped.
-* S3-compatible storage works through the client: `new AmazonS3Client(new AmazonS3Config { ServiceURL = "http://localhost:9000", ForcePathStyle = true })` for MinIO, the account endpoint for Cloudflare R2.
-
-## Storage: Azure, ADLS Gen2, OneLake
-
-```csharp
-var blobs = new BlobServiceClient(new Uri("https://shop.blob.core.windows.net"), new DefaultAzureCredential());
-var dataset = DataLake.Open<Order>("abfss://lake@shop.dfs.core.windows.net/orders/", new DataLakeOptions { Storage = new AzureBlobStorage(blobs) });
-```
-
-`AzureBlobStorage` uses the Blob API, which ADLS Gen2 and OneLake also serve.
-
-| Location | |
-|---|---|
-| `abfss://container@account.dfs.core.windows.net/path` | ADLS Gen2 (also `abfs://`) |
-| `wasbs://container@account.blob.core.windows.net/path` | Blob Storage (also `wasb://`) |
-| `https://account.blob.core.windows.net/container/path` | either |
-| `abfss://workspace@onelake.dfs.fabric.microsoft.com/item.Lakehouse/Files/path` | OneLake; the client points to `https://onelake.blob.fabric.microsoft.com` |
-| `az://container/path` | the account the client points to, e.g. Azurite |
-
-A location in another account than the client is an error. ADLS directory markers are skipped.
-
-## Storage: writes
-
-Every storage writes and deletes single files. [Dataset writes](#write-a-dataset) use this, and Iceberg tables will; it is also the place to put your own files.
-
-```csharp
-ILakeStorage storage = new S3Storage(s3);
-await using var parquet = File.OpenRead("part-00000.parquet");
-var file = await storage.WriteAsync("s3://shop/orders/date=2026-10-01/part-00000.parquet", parquet);
-
-await storage.WriteAsync("s3://shop/tables/orders/v2.metadata.json", metadata, WriteMode.CreateNew); // LakeFileExistsException if it exists
-await storage.DeleteAsync("s3://shop/orders/date=2026-10-01/part-00000.parquet");                 // no error if it doesn't
-```
-
-* The stream is read from its current position to the end. It does not have to be seekable and is not disposed.
-* Readers see the old file or the whole new one, never a part. Local disk writes a hidden temporary file next to the target (datasets skip it) and renames it; S3 and Azure commit the upload at the end.
-* `WriteMode.CreateNew` checks and writes in one step, so of two writers creating the same file exactly one wins and the other gets `LakeFileExistsException`. S3 sends `If-None-Match: *` (Amazon S3, MinIO, R2; a store that ignores the header overwrites), Azure the same condition, local disk a hard link (a file system without hard links, such as FAT, falls back to a check and a move).
-* S3 sends up to 8 MiB in one PUT and more as a multipart upload in 8 MiB parts, so files up to 80 GB never sit in memory whole. A failed upload is aborted.
-* Azure creates the missing directories of ADLS Gen2 and OneLake.
-* Your own `ILakeStorage` can stay read-only: `WriteAsync` and `DeleteAsync` have default implementations that throw `NotSupportedException`.
-
 ## Telemetry
 
 ```csharp
@@ -300,7 +278,9 @@ builder.Services.AddOpenTelemetry()
 ```
 
 * Activity `datalake.scan` per read, tagged with `datalake.location`, `datalake.row_type`, `datalake.filter`, and what was skipped and read (`datalake.files`, `datalake.files.skipped`, `datalake.row_groups`, `datalake.row_groups.skipped`, `datalake.rows.read`, `datalake.rows.returned`, `datalake.bytes.read`).
-* Counters: `datalake.scan.files`, `datalake.scan.files.skipped`, `datalake.scan.row_groups.skipped`, `datalake.scan.rows.read`, `datalake.scan.bytes.read`.
+* Activity `datalake.write` per write, tagged with `datalake.write.mode`, `datalake.filter`, `datalake.files.written`, `datalake.files.removed`, `datalake.rows.written`, `datalake.bytes.written`.
+* Both carry `datalake.context`, `datalake.dataset` and `datalake.provider`.
+* Counters: `datalake.write.files`, `datalake.write.files.removed`, `datalake.write.rows`, `datalake.write.bytes`, `datalake.scan.files`, `datalake.scan.files.skipped`, `datalake.scan.row_groups.skipped`, `datalake.scan.rows.read`, `datalake.scan.bytes.read`.
 
 ## Command line
 
@@ -344,11 +324,10 @@ Credentials come from the environment, like the cloud CLIs: the default AWS chai
 
 ## Limits of 0.2
 
-* Iceberg tables come in 0.3 (read) and 1.0 (write), Delta Lake later. Dataset writes are plain Parquet files: no transactions, no schema checks against files already there.
-* Writes produce Parquet only; Avro and Arrow files are read, not written into datasets (`ArrowConvert.WriteIpcAsync` writes single Arrow files).
+* Iceberg tables come in 0.3 (read) and 1.0 (write), Delta Lake later. Until then the only real provider is Parquet folders: no transactions, no schema checks against files already there (see [Parquet](providers/Parquet.md)).
+* Free-text SQL over a context's datasets is not there yet; the options are recorded in [design/lake-context.md](design/lake-context.md).
 * Nested columns in legacy layouts (repeated fields without a LIST group, two-level lists) and into `object` or `Dictionary<string, object?>` still go value by value, slower than typed ones.
 * Parquet.Net 6.1 writes the min/max statistics of microsecond and nanosecond timestamps in milliseconds. Those statistics are not used for files written by Parquet.Net directly, so such filters read the row groups instead of skipping them. Files DataLake writes have them fixed; files from Spark, PyIceberg, pyarrow or Trino are fine.
-* A location without data files reads zero rows. On local disk a folder that does not exist is an error.
 * Tested against Silo (a MinIO fork) and Azurite in Docker. ADLS Gen2, OneLake and R2 use the same APIs but were not tested against the real services yet.
 * The ADBC samples compile in CI but run only against your own accounts.
 

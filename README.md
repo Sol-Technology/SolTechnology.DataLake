@@ -31,17 +31,26 @@ public class Order
     public long Id { get; set; }
     public decimal? Amount { get; set; }
     public DateTimeZone CreatedAt { get; set; }   // SolTechnology.DateTimeZone
-    public DateOnly Date { get; set; }            // from the path: date=2026-10-29/
-    public string Country { get; set; }           // from the path: country=PL/
+    public DateOnly Date { get; set; }            // partition: date=2026-10-29/
+    public string Country { get; set; }           // partition: country=PL/
 }
 
-var orders = DataLake.Open<Order>("s3://shop/orders/", new DataLakeOptions { Storage = new S3Storage(new AmazonS3Client()) })
-    .Where(o => o.Date == yesterday && o.Country == "PL");
+public class ShopLake(LakeContextOptions<ShopLake> options) : LakeContext(options), IShopLake
+{
+    public IDataset<Order> Orders => Dataset<Order>("orders");
 
-await foreach (var order in orders.ReadAsync())
+    protected override void OnModelCreating(LakeModelBuilder model) =>
+        model.Dataset<Order>("orders").PartitionBy(o => o.Date, o => o.Country);
+}
+
+// The only place that knows the technology. Tests: o.UseInMemory(). Iceberg in 0.3.
+services.AddDataLake<IShopLake, ShopLake>(o => o.UseParquet("s3://shop/", new S3Storage(new AmazonS3Client())));
+
+await foreach (var order in lake.Orders.Where(o => o.Date == yesterday && o.Country == "PL").ReadAsync())
 {
     // only the files for that day and country were downloaded
 }
+await lake.Orders.ReplacePartitionsAsync(todaysOrders);
 ```
 
 What it does:
@@ -50,12 +59,13 @@ What it does:
 * **Your classes** - columns map to properties by name (`[DataMember]`, snake_case policy, any case). Structs, lists and maps map to nested classes, lists and dictionaries
 * **No guessing** - a UTC timestamp reads into `DateTimeZone` or `DateTimeOffset`, one without a zone into `UnzonedDateTime`. A missing column, a null in a non-nullable property or a lossy conversion is an error that says what to change
 * **S3 and Azure** - ranged reads, so a skipped file costs nothing. S3-compatible storage (MinIO, R2) and ADLS Gen2 / OneLake through the Blob API
-* **Writes** - `WriteAsync` turns your classes into Parquet files, partitioned hive-style, appending or overwriting partitions. Types and statistics that Spark, Trino, DuckDB and pyarrow read right (checked in CI)
+* **One API, the technology in one place** - a `LakeContext` like EF Core's `DbContext`, with `IDataset<T>` to read and write; the provider (Parquet folders now, Iceberg next) is chosen at registration. Interfaces to mock, `UseInMemory()` for tests
+* **Writes** - append, overwrite, overwrite with a filter, replace partitions, delete: the words Spark, delta-rs and PyIceberg use. Parquet files with types and statistics that Spark, Trino, DuckDB and pyarrow read right (checked in CI)
 * **Apache Arrow** - record batches, IPC files and ADBC query results (Databricks SQL, Snowflake, Flight SQL) into your classes and back
 * **`datalake` CLI** - `ls`, `schema`, `head`, `cat`, `stats` for any location
 * **OpenTelemetry** - every read is a `datalake.scan` activity with files, row groups and bytes skipped and read
 
-Full documentation: [docs/Documentation.md](./docs/Documentation.md).
+Full documentation: [docs/Documentation.md](./docs/Documentation.md), and per provider: [Parquet](./docs/providers/Parquet.md), [InMemory](./docs/providers/InMemory.md).
 
 ## Plan
 
@@ -75,7 +85,7 @@ Step by step: [docs/ROADMAP.md](./docs/ROADMAP.md).
 
 | Package | What is inside |
 |---|---|
-| SolTechnology.DataLake | datasets, Parquet, Avro, Arrow, local disk |
+| SolTechnology.DataLake | contexts and datasets, Parquet and in-memory providers, Avro and Arrow reads, local disk |
 | SolTechnology.DataLake.Aws | S3 and S3-compatible storage |
 | SolTechnology.DataLake.Azure | Azure Blob Storage, ADLS Gen2, OneLake |
 | SolTechnology.DataLake.Cli | `datalake` command line tool |

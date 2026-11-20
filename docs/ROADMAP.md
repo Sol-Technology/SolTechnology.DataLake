@@ -51,6 +51,7 @@ Writes, and Arrow results in your classes.
 - [x] CLI: `cat --format json`, `stats`
 - [x] Benchmark vs `pyarrow.dataset` on the same data
 - [x] Faster nested columns (compiled per type, like flat ones)
+- [x] `LakeContext` with a provider per context, `IDataset<T>`, `UseInMemory()` for tests ([design](design/lake-context.md))
 
 ## 0.3 Iceberg read
 

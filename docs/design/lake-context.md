@@ -1,6 +1,6 @@
 # LakeContext: one API, provider per context
 
-Status: plan, reviewed (Go with changes, applied). Target: before `0.2.0-preview.1` is published, so nothing public breaks.
+Status: implemented on 20 November 2026 (steps 1-8), before `0.2.0-preview.1` was published. Current behaviour: [Documentation.md](../Documentation.md).
 
 ## Goal
 
