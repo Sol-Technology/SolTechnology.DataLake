@@ -207,6 +207,15 @@ var lake = new ShopLake(LakeContextOptions.For<ShopLake>(o => o.UseParquet("/dat
 - The CLI uses `DatasetFiles` and the format readers only: unaffected.
 - Providers stay internal until Iceberg proves the shape.
 
+## Deferred: SQL queries
+
+Raised 20 November, decision postponed. Free-text SQL (`SELECT ... FROM orders JOIN ... GROUP BY ...`) over the datasets of a context.
+
+- Not our own SQL engine or parser: one dataset, no joins or aggregates, and typing lost against LINQ `Where`. Out of scope, as the README says.
+- Preferred route: a separate package (`SolTechnology.DataLake.DuckDb`, DuckDB.NET is native, tens of MB) that registers the model's datasets as DuckDB views over the same storage and credentials, and maps results through `ArrowConvert`. API like EF Core 8: `lake.SqlQueryAsync<T>(FormattableString sql)`, interpolated values as parameters. Iceberg through DuckDB's `iceberg` extension.
+- Limits: `UseInMemory()` can't serve it (DuckDB doesn't read `MemoryStorage`), so tests mock it; remote engines (Databricks, Snowflake, Trino) stay with ADBC and `ArrowConvert`.
+- Open: `SqlQueryAsync<T>` on `IDataLake` now (providers without SQL throw `NotSupportedException`; mockable from day one) or a separate `ISqlLake` added by `UseSql()`. Adding it to `IDataLake` later breaks implementers of the interface, so decide before 1.0.
+
 ## Steps
 
 | # | Step | Done when |

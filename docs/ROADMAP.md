@@ -89,3 +89,4 @@ Depends on what users ask for.
 - [ ] Delta Lake read
 - [ ] Delta Lake write
 - [ ] Google Cloud Storage
+- [ ] SQL over a context's datasets through DuckDB, `SqlQueryAsync<T>(FormattableString)` (design: [design/lake-context.md](design/lake-context.md), "Deferred: SQL queries")
