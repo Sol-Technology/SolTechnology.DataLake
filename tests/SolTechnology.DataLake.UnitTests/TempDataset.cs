@@ -36,6 +36,9 @@ internal sealed class TempDataset : IDisposable
     private static Task Write(ParquetRowGroupWriter group, DataField field, Array values) => values switch
     {
         string?[] s => group.WriteAsync(field, s),
+        // Before int[] and long[]: the CLR lets uint[] pass as int[] (and ulong[] as long[]).
+        uint[] v when values.GetType() == typeof(uint[]) => group.WriteAsync(field, (ReadOnlyMemory<uint>)v),
+        ulong[] v when values.GetType() == typeof(ulong[]) => group.WriteAsync(field, (ReadOnlyMemory<ulong>)v),
         long[] v => group.WriteAsync(field, (ReadOnlyMemory<long>)v),
         long?[] v => group.WriteAsync(field, (ReadOnlyMemory<long?>)v),
         int[] v => group.WriteAsync(field, (ReadOnlyMemory<int>)v),
@@ -43,6 +46,7 @@ internal sealed class TempDataset : IDisposable
         decimal?[] v => group.WriteAsync(field, (ReadOnlyMemory<decimal?>)v),
         double?[] v => group.WriteAsync(field, (ReadOnlyMemory<double?>)v),
         double[] v => group.WriteAsync(field, (ReadOnlyMemory<double>)v),
+
         float[] v => group.WriteAsync(field, (ReadOnlyMemory<float>)v),
         bool[] v => group.WriteAsync(field, (ReadOnlyMemory<bool>)v),
         DateTime[] v => group.WriteAsync(field, (ReadOnlyMemory<DateTime>)v),

@@ -665,6 +665,37 @@ public class DatasetWriteTests(string provider)
     }
 
     [Test]
+    public async Task A_cancelled_write_removes_its_files_and_keeps_the_old_data()
+    {
+        var dataset = Writable<Sale>(o => o.RowGroupSize(10).TargetFileSize(1), s => s.Date);
+        await dataset.AppendAsync(Sales(30));
+        var before = await FilesOf();
+        using var cancel = new CancellationTokenSource();
+        var written = 0;
+
+        // Rows 100.. go round three dates: each partition has a full row group (10 rows), so a finished file, by row 30.
+        var overwrite = () => dataset.OverwriteAsync(CancelAfter(32), cancel.Token);
+
+        await overwrite.Should().ThrowAsync<OperationCanceledException>();
+        written.Should().BeGreaterThanOrEqualTo(3, "files were written before the cancel");
+        (await FilesOf()).Should().Equal(before, "the files written before the cancel are removed and the old ones stay");
+        (await dataset.CountAsync()).Should().Be(30);
+
+        async IAsyncEnumerable<Sale> CancelAfter(int count)
+        {
+            foreach (var sale in Sales(count + 10, 100))
+            {
+                if (--count < 0)
+                {
+                    written = (await FilesOf()).Count - before.Count;
+                    await cancel.CancelAsync();
+                }
+                yield return sale;
+            }
+        }
+    }
+
+    [Test]
     public void Partition_properties_are_checked_when_the_dataset_is_first_used()
     {
         var notAProperty = Lake(m => m.Dataset<Sale>("data").PartitionBy(s => s.Amount + 1));
