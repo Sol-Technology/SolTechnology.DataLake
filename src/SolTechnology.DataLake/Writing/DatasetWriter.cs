@@ -1,47 +1,60 @@
 using System.Globalization;
 using System.Linq.Expressions;
+using System.Reflection;
 using System.Text;
+using SolTechnology.DataLake.Filtering;
 using SolTechnology.DataLake.Mapping;
 using SolTechnology.DataLake.Partitions;
+using SolTechnology.DataLake.Providers;
 using SolTechnology.DataLake.Storage;
 
 namespace SolTechnology.DataLake.Writing;
 
+/// <summary>The five writes of <see cref="IDataset{T}"/>, as the Parquet provider runs them.</summary>
+internal enum DatasetWrite { Append, Overwrite, OverwriteWhere, ReplacePartitions }
+
 /// <summary>
 /// Rows to Parquet files under a location, one folder per partition. Each partition buffers one row group; full row
-/// groups go to a temporary local file, and a finished file goes to the storage with <see cref="WriteMode.CreateNew"/>.
+/// groups go to a temporary stream, and a finished file goes to the storage with <see cref="WriteMode.CreateNew"/>.
+/// Old files are removed only after every new file is written; a failed write removes the files it wrote.
 /// </summary>
 internal sealed class DatasetWriter<T> where T : class
 {
     private readonly ILakeStorage _storage;
     private readonly string _location;
-    private readonly DatasetWriteOptions _options;
+    private readonly DatasetSpec _spec;
+    private readonly ParquetProviderOptions _options;
+    private readonly Func<Stream> _tempStream;
+    private readonly string _provider;
+    private readonly ClassMap<T> _map;
     private readonly WriteLayout<T> _layout;
-    private readonly PartitionKey[] _keys;
+    private readonly PartitionKey<T>[] _keys;
     private readonly string _writeId = Guid.NewGuid().ToString("N")[..12];
     private readonly Dictionary<string, OpenPartition> _open = new(StringComparer.Ordinal);
     private readonly List<LakeFile> _written = [];
     private int _sequence;
 
-    public DatasetWriter(ILakeStorage storage, string location, DataLakeOptions lakeOptions, DatasetWriteOptions options)
+    public DatasetWriter(ILakeStorage storage, string location, DatasetSpec spec, ParquetProviderOptions options, Func<Stream> tempStream, string provider)
     {
-        if (options.RowGroupSize <= 0) throw new ArgumentOutOfRangeException(nameof(options), "RowGroupSize must be positive.");
-        if (options.TargetFileSize <= 0) throw new ArgumentOutOfRangeException(nameof(options), "TargetFileSize must be positive.");
         _storage = storage;
         _location = location.TrimEnd('/');
+        _spec = spec;
         _options = options;
-        var map = ClassMap<T>.For(lakeOptions.ColumnNaming);
-        _keys = options.PartitionBy.Select(name => PartitionKey.Create(map, name)).ToArray();
-        if (_keys.Select(k => k.Property.Property.Name).Distinct().Count() != _keys.Length)
-            throw new ArgumentException("PartitionBy lists a property twice.", nameof(options));
-        _layout = WriteLayout<T>.For(lakeOptions.ColumnNaming, _keys.Select(k => k.Property.Property.Name).ToHashSet());
+        _tempStream = tempStream;
+        _provider = provider;
+        _map = ClassMap<T>.For(spec.Naming);
+        _keys = PartitionKey<T>.For(_map, spec.PartitionBy);
+        _layout = WriteLayout<T>.For(spec.Naming, _keys.Select(k => k.Property.Property.Name).ToHashSet());
     }
 
-    public async Task<DatasetWriteResult> WriteAsync(IAsyncEnumerable<T> rows, CancellationToken ct)
+    public async Task<LakeWriteResult> WriteAsync(DatasetWrite mode, IAsyncEnumerable<T> rows, Expression<Func<T, bool>>? where, CancellationToken ct)
     {
+        if (mode == DatasetWrite.ReplacePartitions && _keys.Length == 0)
+            throw new InvalidOperationException($"Dataset '{_spec.Name}' is not partitioned, so it has no partitions to replace. Use OverwriteAsync to replace all of it.");
+        var filter = where is null ? null : CreateFilter(where);
+
         var existing = await ExistingAsync(ct).ConfigureAwait(false);
-        if (_options.Mode == DatasetWriteMode.ErrorIfExists && existing.Count > 0)
-            throw new IOException($"'{_location}' already has {existing.Count} data file(s). Use DatasetWriteMode.Append or OverwritePartitions to write there.");
+        CheckLayout(existing);
 
         long count = 0;
         try
@@ -49,10 +62,13 @@ internal sealed class DatasetWriter<T> where T : class
             await foreach (var row in rows.WithCancellation(ct).ConfigureAwait(false))
             {
                 ArgumentNullException.ThrowIfNull(row, nameof(rows));
-                var folder = Folder(row);
-                if (!_open.TryGetValue(folder, out var partition)) _open[folder] = partition = new OpenPartition(folder);
+                if (filter is not null && !filter.Rows(row))
+                    throw new InvalidDataException($"A row does not match the filter of the overwrite on '{_spec.Name}' ({where}); it would not be replaced next time.");
+                var values = _keys.Select(k => k.Value(row)).ToArray();
+                var folder = Folder(values);
+                if (!_open.TryGetValue(folder, out var partition)) _open[folder] = partition = new OpenPartition(folder, Canonical(values));
                 partition.Buffer.Add(row);
-                if (partition.Buffer.Count >= _options.RowGroupSize) await FlushAsync(partition, ct).ConfigureAwait(false);
+                if (partition.Buffer.Count >= _options.RowGroupSizeValue) await FlushAsync(partition, ct).ConfigureAwait(false);
                 count++;
             }
 
@@ -62,22 +78,32 @@ internal sealed class DatasetWriter<T> where T : class
                 await FinishFileAsync(partition, ct).ConfigureAwait(false);
             }
         }
+        catch
+        {
+            await RemoveWrittenAsync().ConfigureAwait(false);
+            throw;
+        }
         finally
         {
             foreach (var partition in _open.Values) await partition.DisposeAsync().ConfigureAwait(false);
         }
 
-        var deleted = new List<LakeFile>();
-        if (_options.Mode == DatasetWriteMode.OverwritePartitions)
+        var touched = _open.Values.Select(p => p.Canonical).ToHashSet(StringComparer.Ordinal);
+        var removed = new List<LakeFile>();
+        foreach (var file in existing)
         {
-            foreach (var file in existing)
+            var remove = mode switch
             {
-                if (!_open.ContainsKey(FolderOf(file.RelativePath))) continue;
-                await _storage.DeleteAsync(file.Location, ct).ConfigureAwait(false);
-                deleted.Add(file);
-            }
+                DatasetWrite.Overwrite => true,
+                DatasetWrite.ReplacePartitions => touched.Contains(Canonical(PartitionTexts(file))),
+                DatasetWrite.OverwriteWhere => filter!.Matches(file),
+                _ => false,
+            };
+            if (!remove) continue;
+            await _storage.DeleteAsync(file.Location, ct).ConfigureAwait(false);
+            removed.Add(file);
         }
-        return new DatasetWriteResult(_written, count, deleted);
+        return new LakeWriteResult { Written = _written, Removed = removed, Rows = count };
     }
 
     private async Task<List<LakeFile>> ExistingAsync(CancellationToken ct)
@@ -92,18 +118,91 @@ internal sealed class DatasetWriter<T> where T : class
         }
     }
 
+    // Files laid out by other keys (Spark wrote date=, the model says nothing) would be mixed with ours, or deleted by
+    // an overwrite that thinks they are one partition. Keys match case-insensitively, like reads.
+    private void CheckLayout(List<LakeFile> existing)
+    {
+        var declared = _keys.Select(k => k.Column).ToArray();
+        foreach (var file in existing)
+        {
+            var found = PartitionSegments(file.RelativePath).Select(s => s.Key).ToArray();
+            if (found.SequenceEqual(declared, StringComparer.OrdinalIgnoreCase)) continue;
+            throw new InvalidOperationException(
+                $"'{_location}' has files partitioned by ({string.Join(", ", found)}), e.g. {file.RelativePath}, but dataset '{_spec.Name}' is declared " +
+                $"with ({string.Join(", ", declared)}). Declare the same partitions in the model (PartitionBy), or write to another dataset.");
+        }
+    }
+
+    private static IEnumerable<(string Key, string? Value)> PartitionSegments(string relativePath)
+    {
+        var segments = relativePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        foreach (var segment in segments[..^1])
+        {
+            var eq = segment.IndexOf('=', StringComparison.Ordinal);
+            if (eq <= 0) continue;
+            var value = Uri.UnescapeDataString(segment[(eq + 1)..]);
+            yield return (Uri.UnescapeDataString(segment[..eq]), value == HivePartitions.DefaultPartition ? null : value);
+        }
+    }
+
+    private string?[] PartitionTexts(LakeFile file)
+    {
+        var parsed = HivePartitions.Parse(file.RelativePath);
+        return _keys.Select(k => parsed.GetValueOrDefault(k.Column)).ToArray();
+    }
+
+    // Partition values as text, null as its own marker: equal for the same partition however its folder was escaped.
+    private static string Canonical(string?[] values) => string.Join('\u001F', values.Select(v => v ?? "\u0000"));
+
+    private string Folder(string?[] values)
+    {
+        if (_keys.Length == 0) return "";
+        var builder = new StringBuilder();
+        for (var i = 0; i < _keys.Length; i++)
+        {
+            if (builder.Length > 0) builder.Append('/');
+            builder.Append(HivePath.Escape(_keys[i].Column)).Append('=').Append(HivePath.Escape(values[i] ?? HivePartitions.DefaultPartition));
+        }
+        return builder.ToString();
+    }
+
+    private FilesFilter CreateFilter(Expression<Func<T, bool>> where)
+    {
+        var predicate = PredicateTranslator.Translate(SpanContains.Rewrite(where));
+        var partitionProperties = _keys.Select(k => k.Property.Property.Name).ToHashSet(StringComparer.Ordinal);
+        var outside = predicate.Properties().FirstOrDefault(p => !partitionProperties.Contains(p));
+        if (HasOpaque(predicate) || outside is not null || !predicate.Properties().Any())
+            throw new NotSupportedException(
+                $"The {_provider} provider deletes whole files, so the filter of an overwrite or delete on '{_spec.Name}' must compare partition columns " +
+                $"({(_keys.Length == 0 ? "none declared" : string.Join(", ", _keys.Select(k => k.Property.Property.Name)))}) with values" +
+                $"{(outside is null ? "" : $"; '{outside}' is not one")}: {where}. Rows inside files are not rewritten; a table format (Iceberg) can do that.");
+        return new FilesFilter(predicate, where.Compile(), file =>
+        {
+            var partitions = ParquetDataset<T>.PartitionValues(_map, file);
+            return name => ParquetDataset<T>.Exact(partitions, name);
+        }, _spec.Name);
+    }
+
+    private static bool HasOpaque(Predicate predicate) => predicate switch
+    {
+        Predicate.Opaque => true,
+        Predicate.And a => HasOpaque(a.Left) || HasOpaque(a.Right),
+        Predicate.Or o => HasOpaque(o.Left) || HasOpaque(o.Right),
+        Predicate.Not n => HasOpaque(n.Inner),
+        _ => false,
+    };
+
     private async Task FlushAsync(OpenPartition partition, CancellationToken ct)
     {
         if (partition.Buffer.Count == 0) return;
         if (partition.Writer is null)
         {
-            partition.Temp = new FileStream(Path.Combine(Path.GetTempPath(), $"datalake-{Guid.NewGuid():N}.parquet"), FileMode.CreateNew,
-                FileAccess.ReadWrite, FileShare.None, 1 << 16, FileOptions.DeleteOnClose | FileOptions.Asynchronous);
-            partition.Writer = await ParquetFileWriter<T>.CreateAsync(partition.Temp, _layout, _options.Compression, ct).ConfigureAwait(false);
+            partition.Temp = _tempStream();
+            partition.Writer = await ParquetFileWriter<T>.CreateAsync(partition.Temp, _layout, _options.CompressionValue, ct).ConfigureAwait(false);
         }
         await partition.Writer.WriteRowGroupAsync(partition.Buffer, ct).ConfigureAwait(false);
         partition.Buffer.Clear();
-        if (partition.Writer.Length >= _options.TargetFileSize) await FinishFileAsync(partition, ct).ConfigureAwait(false);
+        if (partition.Writer.Length >= _options.TargetFileSizeValue) await FinishFileAsync(partition, ct).ConfigureAwait(false);
     }
 
     private async Task FinishFileAsync(OpenPartition partition, CancellationToken ct)
@@ -119,7 +218,22 @@ internal sealed class DatasetWriter<T> where T : class
         await partition.DisposeAsync().ConfigureAwait(false);
     }
 
-    private string Extension() => _options.Compression switch
+    private async Task RemoveWrittenAsync()
+    {
+        foreach (var file in _written)
+        {
+            try
+            {
+                await _storage.DeleteAsync(file.Location, CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception e) when (e is not OutOfMemoryException)
+            {
+                // Best effort: the original failure matters more than a leftover file.
+            }
+        }
+    }
+
+    private string Extension() => _options.CompressionValue switch
     {
         ParquetCompression.Snappy => ".snappy.parquet",
         ParquetCompression.Zstd => ".zstd.parquet",
@@ -127,31 +241,13 @@ internal sealed class DatasetWriter<T> where T : class
         _ => ".parquet",
     };
 
-    private string Folder(T row)
-    {
-        if (_keys.Length == 0) return "";
-        var builder = new StringBuilder();
-        foreach (var key in _keys)
-        {
-            if (builder.Length > 0) builder.Append('/');
-            builder.Append(HivePath.Escape(key.Column)).Append('=').Append(HivePath.Escape(key.Format(row)));
-        }
-        return builder.ToString();
-    }
-
-    private string FolderOf(string relativePath)
-    {
-        if (_keys.Length == 0) return "";
-        var segments = relativePath.Split('/');
-        return segments.Length > _keys.Length ? string.Join('/', segments[.._keys.Length]) : "\0";
-    }
-
-    private sealed class OpenPartition(string folder) : IAsyncDisposable
+    private sealed class OpenPartition(string folder, string canonical) : IAsyncDisposable
     {
         public string Folder { get; } = folder;
+        public string Canonical { get; } = canonical;
         public List<T> Buffer { get; } = [];
         public ParquetFileWriter<T>? Writer { get; set; }
-        public FileStream? Temp { get; set; }
+        public Stream? Temp { get; set; }
 
         public async ValueTask DisposeAsync()
         {
@@ -162,43 +258,61 @@ internal sealed class DatasetWriter<T> where T : class
         }
     }
 
-    private sealed class PartitionKey
+    /// <summary>The filter of an overwrite or delete: which existing files it covers, and whether a new row is inside it.</summary>
+    private sealed class FilesFilter(Predicate predicate, Func<T, bool> rows, Func<LakeFile, Func<string, ColumnFacts?>> facts, string dataset)
     {
-        private static readonly Type[] Supported =
-        [
-            typeof(string), typeof(bool), typeof(sbyte), typeof(byte), typeof(short), typeof(ushort), typeof(int), typeof(uint), typeof(long), typeof(ulong),
-            typeof(DateOnly), typeof(Guid),
-        ];
+        public Func<T, bool> Rows { get; } = rows;
 
-        private Func<T, object?> _get = null!;
-
-        public PropertyMap<T> Property { get; private init; } = null!;
-        public string Column => Property.Column;
-
-        public static PartitionKey Create(ClassMap<T> map, string name)
+        public bool Matches(LakeFile file) => predicate.Evaluate(facts(file)) switch
         {
-            var property = map.Properties.FirstOrDefault(p => p.Property.Name == name) ?? map.Find(name)
-                ?? throw new ArgumentException($"PartitionBy: {typeof(T).Name} has no property '{name}'.");
-            var type = Nullable.GetUnderlyingType(property.Type) ?? property.Type;
-            if (!Supported.Contains(type) && !type.IsEnum)
-                throw new NotSupportedException($"PartitionBy: {typeof(T).Name}.{property.Property.Name} is {type.Name}; partition by a string, integer, bool, DateOnly, Guid or enum.");
-            var row = Expression.Parameter(typeof(T));
-            var get = Expression.Lambda<Func<T, object?>>(Expression.Convert(Expression.Property(row, property.Property), typeof(object)), row).Compile();
-            return new PartitionKey { Property = property, _get = get };
-        }
-
-        public string Format(T row) => _get(row) switch
-        {
-            null or "" => HivePartitions.DefaultPartition,
-            string s => s,
-            bool b => b ? "true" : "false",
-            DateOnly d => d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-            Guid g => g.ToString("D"),
-            Enum e => e.ToString(),
-            IFormattable f => f.ToString(null, CultureInfo.InvariantCulture),
-            var other => other.ToString()!,
+            Tri.True => true,
+            Tri.False => false,
+            _ => throw new InvalidOperationException(
+                $"Can't tell whether {file.RelativePath} of '{dataset}' matches the filter (its partition values don't compare with the filter's values); nothing was deleted."),
         };
     }
+}
+
+/// <summary>A partition property of <typeparamref name="T"/>: its column name and its value in a row as folder text.</summary>
+internal sealed class PartitionKey<T> where T : class
+{
+    private static readonly Type[] Supported =
+    [
+        typeof(string), typeof(bool), typeof(sbyte), typeof(byte), typeof(short), typeof(ushort), typeof(int), typeof(uint), typeof(long), typeof(ulong),
+        typeof(DateOnly), typeof(Guid),
+    ];
+
+    private Func<T, object?> _get = null!;
+
+    public PropertyMap<T> Property { get; private init; } = null!;
+    public string Column => Property.Column;
+
+    public static PartitionKey<T>[] For(ClassMap<T> map, IReadOnlyList<PropertyInfo> properties) =>
+        properties.Select(p => Create(map, p)).ToArray();
+
+    private static PartitionKey<T> Create(ClassMap<T> map, PropertyInfo info)
+    {
+        var property = map.Property(info.Name);
+        var type = Nullable.GetUnderlyingType(property.Type) ?? property.Type;
+        if (!Supported.Contains(type) && !type.IsEnum)
+            throw new NotSupportedException($"PartitionBy: {typeof(T).Name}.{info.Name} is {type.Name}; partition by a string, integer, bool, DateOnly, Guid or enum.");
+        var row = Expression.Parameter(typeof(T));
+        var get = Expression.Lambda<Func<T, object?>>(Expression.Convert(Expression.Property(row, info), typeof(object)), row).Compile();
+        return new PartitionKey<T> { Property = property, _get = get };
+    }
+
+    /// <summary>The value as folder text before escaping; null for null and the empty string (Hive's default partition).</summary>
+    public string? Value(T row) => _get(row) switch
+    {
+        null or "" => null,
+        string s => s,
+        bool b => b ? "true" : "false",
+        DateOnly d => d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+        Guid g => g.ToString("D"),
+        Enum e => e.ToString(),
+        IFormattable f => f.ToString(null, CultureInfo.InvariantCulture),
+        var other => other.ToString(),
+    };
 }
 
 /// <summary>Hive's escaping of partition folder names, which Spark, Trino and DuckDB share.</summary>

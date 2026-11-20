@@ -21,6 +21,10 @@ public static class DataLakeTelemetry
     private static readonly Counter<long> RowGroupsSkipped = Meter.CreateCounter<long>("datalake.scan.row_groups.skipped", "{row_group}", "Row groups skipped by statistics.");
     private static readonly Counter<long> RowsRead = Meter.CreateCounter<long>("datalake.scan.rows.read", "{row}", "Rows decoded from files.");
     private static readonly Counter<long> BytesRead = Meter.CreateCounter<long>("datalake.scan.bytes.read", "By", "Bytes fetched from storage.");
+    private static readonly Counter<long> FilesWritten = Meter.CreateCounter<long>("datalake.write.files", "{file}", "Data files written.");
+    private static readonly Counter<long> FilesRemoved = Meter.CreateCounter<long>("datalake.write.files.removed", "{file}", "Data files removed by overwrites and deletes.");
+    private static readonly Counter<long> RowsWritten = Meter.CreateCounter<long>("datalake.write.rows", "{row}", "Rows written.");
+    private static readonly Counter<long> BytesWritten = Meter.CreateCounter<long>("datalake.write.bytes", "By", "Bytes written to storage.");
 
     internal static void Record(ScanMetrics metrics, Activity? activity)
     {
@@ -37,5 +41,19 @@ public static class DataLakeTelemetry
         activity?.SetTag("datalake.rows.read", metrics.RowsRead);
         activity?.SetTag("datalake.rows.returned", metrics.RowsReturned);
         activity?.SetTag("datalake.bytes.read", metrics.BytesRead);
+    }
+
+    internal static void RecordWrite(LakeWriteResult result, Activity? activity)
+    {
+        var bytes = result.Written.Sum(f => f.Length);
+        FilesWritten.Add(result.Written.Count);
+        FilesRemoved.Add(result.Removed.Count);
+        RowsWritten.Add(result.Rows);
+        BytesWritten.Add(bytes);
+
+        activity?.SetTag("datalake.files.written", result.Written.Count);
+        activity?.SetTag("datalake.files.removed", result.Removed.Count);
+        activity?.SetTag("datalake.rows.written", result.Rows);
+        activity?.SetTag("datalake.bytes.written", bytes);
     }
 }

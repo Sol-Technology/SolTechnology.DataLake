@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using System.Runtime.Serialization;
 using Parquet;
 using Parquet.Schema;
@@ -6,15 +7,59 @@ using SolTechnology.Time;
 
 namespace SolTechnology.DataLake.UnitTests;
 
-public class DatasetWriteTests
+// Every write test runs on local disk and on UseInMemory(): the same provider on two storages, so the same results.
+[TestFixture("local")]
+[TestFixture("memory")]
+public class DatasetWriteTests(string provider)
 {
-    private TempDataset _lake = null!;
+    private TempDataset _temp = null!;
+    private MemoryStorage _memory = null!;
 
     [SetUp]
-    public void CreateLake() => _lake = new TempDataset();
+    public void CreateLake()
+    {
+        _temp = new TempDataset();
+        _memory = new MemoryStorage();
+    }
 
     [TearDown]
-    public void DeleteLake() => _lake.Dispose();
+    public void DeleteLake() => _temp.Dispose();
+
+    private ILakeStorage Storage => provider == "local" ? LocalStorage.Instance : _memory;
+
+    private string Location(string name) => provider == "local" ? $"{_temp.Root}/{name}" : $"memory://lake/{name}";
+
+    private LakeContext Lake(Action<LakeModelBuilder>? model = null, Action<ParquetProviderOptions>? options = null) =>
+        LakeContext.Create(o =>
+        {
+            if (provider == "local") o.UseParquet(_temp.Root, configure: options);
+            else o.UseInMemory(_memory, options);
+        }, model);
+
+    private IDataset<T> Writable<T>(params Expression<Func<T, object?>>[] partitionBy) where T : class =>
+        Lake(m => m.Dataset<T>("data").PartitionBy(partitionBy)).Dataset<T>("data");
+
+    private IDataset<T> Writable<T>(Action<ParquetProviderOptions> options, params Expression<Func<T, object?>>[] partitionBy) where T : class =>
+        Lake(m => m.Dataset<T>("data").PartitionBy(partitionBy), options).Dataset<T>("data");
+
+    private async Task<List<string>> FilesOf(string name = "data")
+    {
+        try
+        {
+            return await Storage.ListAsync(Location(name)).Select(f => f.RelativePath).OrderBy(p => p, StringComparer.Ordinal).ToListAsync();
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return [];
+        }
+    }
+
+    private async Task<ParquetReader> OpenParquet(LakeFile file)
+    {
+        var bytes = new byte[file.Length];
+        await Storage.ReadAsync(file, 0, bytes);
+        return await ParquetReader.CreateAsync(new MemoryStream(bytes));
+    }
 
     public enum Status { New, Paid }
 
@@ -78,12 +123,13 @@ public class DatasetWriteTests
     public async Task Every_type_reads_back_the_same()
     {
         var rows = Enumerable.Range(0, 100).Select(Sample).ToList();
+        var dataset = Writable<Everything>();
 
-        var result = await DataLake.Open<Everything>(_lake.Root).WriteAsync(rows);
-        var read = await DataLake.Open<Everything>(_lake.Root).ReadAsync().ToListAsync();
+        var result = await dataset.AppendAsync(rows);
+        var read = await dataset.ReadAsync().ToListAsync();
 
         result.Rows.Should().Be(100);
-        result.Files.Should().ContainSingle().Which.RelativePath.Should().MatchRegex(@"^part-00001-[0-9a-f]{12}\.snappy\.parquet$");
+        result.Written.Should().ContainSingle().Which.RelativePath.Should().MatchRegex(@"^part-00001-[0-9a-f]{12}\.snappy\.parquet$");
         read.Should().BeEquivalentTo(rows, o => o.WithStrictOrdering()
             .Excluding(r => r.Ignored)
             .Using<DateTimeOffset>(c => c.Subject.Should().Be(c.Expectation)).WhenTypeIs<DateTimeOffset>());
@@ -94,10 +140,9 @@ public class DatasetWriteTests
     [Test]
     public async Task Columns_have_the_types_other_engines_expect()
     {
-        await DataLake.Open<Everything>(_lake.Root).WriteAsync([Sample(1)]);
+        var result = await Writable<Everything>().AppendAsync([Sample(1)]);
 
-        await using var stream = File.OpenRead(Directory.GetFiles(_lake.Root)[0]);
-        await using var reader = await ParquetReader.CreateAsync(stream);
+        await using var reader = await OpenParquet(result.Written[0]);
         var fields = reader.Schema.DataFields.ToDictionary(f => f.Name);
 
         fields.Keys.Should().Contain("renamed_column").And.NotContain("Ignored").And.NotContain("Renamed");
@@ -122,10 +167,9 @@ public class DatasetWriteTests
     public async Task Timestamp_statistics_are_in_microseconds()
     {
         var rows = Enumerable.Range(0, 10).Select(Sample).ToList();
-        await DataLake.Open<Everything>(_lake.Root).WriteAsync(rows);
+        var result = await Writable<Everything>().AppendAsync(rows);
 
-        await using var stream = File.OpenRead(Directory.GetFiles(_lake.Root)[0]);
-        await using var reader = await ParquetReader.CreateAsync(stream);
+        await using var reader = await OpenParquet(result.Written[0]);
         using var group = reader.OpenRowGroupReader(0);
         var statistics = group.GetStatistics(reader.Schema.DataFields.Single(f => f.Name == "CreatedUtc"))!;
 
@@ -138,11 +182,12 @@ public class DatasetWriteTests
     public async Task Filters_skip_row_groups_by_the_written_timestamp_statistics()
     {
         var rows = Enumerable.Range(0, 1000).Select(Sample).ToList();
-        await DataLake.Open<Everything>(_lake.Root).WriteAsync(rows, new DatasetWriteOptions { RowGroupSize = 100 });
+        var dataset = Writable<Everything>(o => o.RowGroupSize(100));
+        await dataset.AppendAsync(rows);
         var from = rows[950].CreatedUtc;
         var metrics = new ScanMetrics();
 
-        var read = await DataLake.Open<Everything>(_lake.Root).Where(r => r.CreatedUtc >= from).ReadAsync(metrics).ToListAsync();
+        var read = await dataset.Where(r => r.CreatedUtc >= from).ReadAsync(metrics).ToListAsync();
 
         read.Select(r => r.Id).Should().Equal(Enumerable.Range(950, 50).Select(i => (long)i));
         metrics.RowGroups.Should().Be(10);
@@ -152,11 +197,11 @@ public class DatasetWriteTests
     [Test]
     public async Task Filters_skip_row_groups_by_text_statistics()
     {
-        var rows = Enumerable.Range(0, 100).Select(i => new Sale { Id = i, Country = $"c{i / 10:00}" }).ToList();
-        await DataLake.Open<Sale>(_lake.Root).WriteAsync(rows, new DatasetWriteOptions { RowGroupSize = 10 });
+        var dataset = Writable<Sale>(o => o.RowGroupSize(10));
+        await dataset.AppendAsync(Enumerable.Range(0, 100).Select(i => new Sale { Id = i, Country = $"c{i / 10:00}" }));
         var metrics = new ScanMetrics();
 
-        var read = await DataLake.Open<Sale>(_lake.Root).Where(s => s.Country == "c07").ReadAsync(metrics).ToListAsync();
+        var read = await dataset.Where(s => s.Country == "c07").ReadAsync(metrics).ToListAsync();
 
         read.Select(r => r.Id).Should().Equal(Enumerable.Range(70, 10).Select(i => (long)i));
         metrics.RowGroupsSkippedByStatistics.Should().Be(9);
@@ -215,9 +260,10 @@ public class DatasetWriteTests
             new() { Id = 2, Lines = [], Scores = [], Optional = [], Address = new Address(), Attributes = [], ByNumber = [], Matrix = [], Times = [] },
             new() { Id = 3 },
         ];
+        var dataset = Writable<Order>();
 
-        await DataLake.Open<Order>(_lake.Root).WriteAsync(rows);
-        var read = await DataLake.Open<Order>(_lake.Root).ReadAsync().ToListAsync();
+        await dataset.AppendAsync(rows);
+        var read = await dataset.ReadAsync().ToListAsync();
 
         read.Should().BeEquivalentTo(rows, o => o.WithStrictOrdering());
     }
@@ -262,9 +308,10 @@ public class DatasetWriteTests
             new() { Id = 2, Lines = [], Address = new Address(), ByNumber = [] },
             new() { Id = 3 },
         ];
-        await DataLake.Open<Order>(_lake.Root).WriteAsync(rows);
+        await Writable<Order>().AppendAsync(rows);
 
-        var read = await DataLake.Open<NarrowOrder>(_lake.Root).ReadAsync().ToListAsync();
+        // Another context on the same storage, without a model: reading needs no declaration.
+        var read = await Lake().Dataset<NarrowOrder>("data").ReadAsync().ToListAsync();
 
         read[0].Lines!.Select(l => l.Quantity).Should().Equal(2, null);
         read[0].Address!.Street!.Number.Should().Be(5);
@@ -282,10 +329,9 @@ public class DatasetWriteTests
     public async Task Nested_timestamp_statistics_are_in_microseconds()
     {
         var t = new DateTime(2026, 10, 1, 8, 0, 0, DateTimeKind.Utc);
-        await DataLake.Open<Order>(_lake.Root).WriteAsync([new Order { Id = 1, Times = [t.AddTicks(10), t] }, new Order { Id = 2 }]);
+        var result = await Writable<Order>().AppendAsync([new Order { Id = 1, Times = [t.AddTicks(10), t] }, new Order { Id = 2 }]);
 
-        await using var stream = File.OpenRead(Directory.GetFiles(_lake.Root)[0]);
-        await using var reader = await ParquetReader.CreateAsync(stream);
+        await using var reader = await OpenParquet(result.Written[0]);
         using var group = reader.OpenRowGroupReader(0);
         var statistics = group.GetStatistics(reader.Schema.DataFields.Single(f => f.Path.ToString().StartsWith("Times")))!;
 
@@ -302,7 +348,7 @@ public class DatasetWriteTests
     [Test]
     public async Task A_recursive_class_is_an_error()
     {
-        var write = () => DataLake.Open<Node>(_lake.Root).WriteAsync([new Node()]);
+        var write = () => Writable<Node>().AppendAsync([new Node()]);
 
         (await write.Should().ThrowAsync<NotSupportedException>()).WithMessage("*Parent.Parent*Node contains itself*");
     }
@@ -323,100 +369,254 @@ public class DatasetWriteTests
         Amount = i,
     }).ToList();
 
+    private static readonly DateOnly Day1 = new(2026, 10, 1);
+    private static readonly DateOnly Day2 = new(2026, 10, 2);
+
     [Test]
-    public async Task PartitionBy_writes_hive_folders_and_reads_back()
+    public async Task Partitions_are_hive_folders_and_read_back()
     {
         var rows = Sales(120);
+        var dataset = Writable<Sale>(s => s.Date, s => s.Country);
 
-        var result = await DataLake.Open<Sale>(_lake.Root).WriteAsync(rows, new DatasetWriteOptions { PartitionBy = [nameof(Sale.Date), nameof(Sale.Country)] });
-        var read = await DataLake.Open<Sale>(_lake.Root).ReadAsync().ToListAsync();
+        var result = await dataset.AppendAsync(rows);
+        var read = await dataset.ReadAsync().ToListAsync();
 
-        result.Files.Should().HaveCount(12);
-        Directory.GetDirectories(_lake.Root).Select(Path.GetFileName).Should().BeEquivalentTo("Date=2026-10-01", "Date=2026-10-02", "Date=2026-10-03");
-        Directory.GetDirectories(_lake.PathOf("Date=2026-10-01")).Select(Path.GetFileName)
-            .Should().BeEquivalentTo("Country=PL", "Country=DE", "Country=a%2Fb c%25", "Country=__HIVE_DEFAULT_PARTITION__");
+        result.Written.Should().HaveCount(12);
+        (await FilesOf()).Select(p => p[..p.LastIndexOf('/')]).Where(p => p.StartsWith("Date=2026-10-01/")).Should().BeEquivalentTo(
+            "Date=2026-10-01/Country=PL", "Date=2026-10-01/Country=DE", "Date=2026-10-01/Country=a%2Fb c%25", "Date=2026-10-01/Country=__HIVE_DEFAULT_PARTITION__");
         read.OrderBy(r => r.Id).Should().BeEquivalentTo(rows, o => o.WithStrictOrdering());
 
-        await using var stream = File.OpenRead(result.Files[0].Location);
-        await using var reader = await ParquetReader.CreateAsync(stream);
+        await using var reader = await OpenParquet(result.Written[0]);
         reader.Schema.DataFields.Select(f => f.Name).Should().Equal("Id", "Amount");
     }
 
     [Test]
     public async Task Partition_filters_skip_written_folders()
     {
-        await DataLake.Open<Sale>(_lake.Root).WriteAsync(Sales(120), new DatasetWriteOptions { PartitionBy = [nameof(Sale.Country)] });
+        var dataset = Writable<Sale>(s => s.Country);
+        await dataset.AppendAsync(Sales(120));
         var metrics = new ScanMetrics();
 
-        var read = await DataLake.Open<Sale>(_lake.Root).Where(s => s.Country == "a/b c%").ReadAsync(metrics).ToListAsync();
+        var read = await dataset.Where(s => s.Country == "a/b c%").ReadAsync(metrics).ToListAsync();
 
         read.Should().HaveCount(30).And.OnlyContain(s => s.Country == "a/b c%");
         metrics.FilesSkippedByPartition.Should().Be(3);
     }
 
     [Test]
-    public async Task ErrorIfExists_refuses_a_location_with_data()
-    {
-        var dataset = DataLake.Open<Sale>(_lake.Root);
-        await dataset.WriteAsync(Sales(10));
-
-        var again = () => dataset.WriteAsync(Sales(10));
-
-        (await again.Should().ThrowAsync<IOException>()).WithMessage("*already has 1 data file*Append or OverwritePartitions*");
-        Directory.GetFiles(_lake.Root).Should().ContainSingle();
-    }
-
-    [Test]
     public async Task Append_adds_files()
     {
-        var dataset = DataLake.Open<Sale>(_lake.Root);
-        await dataset.WriteAsync(Sales(10));
+        var dataset = Writable<Sale>();
+        await dataset.AppendAsync(Sales(10));
 
-        await dataset.WriteAsync(Sales(5, 10), new DatasetWriteOptions { Mode = DatasetWriteMode.Append });
+        await dataset.AppendAsync(Sales(5, 10));
 
         (await dataset.ReadAsync().Select(s => s.Id).ToListAsync()).Should().BeEquivalentTo(Enumerable.Range(0, 15).Select(i => (long)i));
+        (await FilesOf()).Should().HaveCount(2);
     }
 
     [Test]
-    public async Task OverwritePartitions_replaces_only_the_partitions_written()
+    public async Task Overwrite_replaces_the_whole_dataset_with_every_partition()
     {
-        var dataset = DataLake.Open<Sale>(_lake.Root);
-        var byDate = new DatasetWriteOptions { PartitionBy = [nameof(Sale.Date)] };
-        await dataset.WriteAsync(Sales(30), byDate);
+        var dataset = Writable<Sale>(s => s.Date);
+        await dataset.AppendAsync(Sales(30));
 
-        var newDay2 = new List<Sale> { new() { Id = 1000, Date = new DateOnly(2026, 10, 2), Country = "PL", Amount = 1 } };
-        var result = await dataset.WriteAsync(newDay2, new DatasetWriteOptions { PartitionBy = [nameof(Sale.Date)], Mode = DatasetWriteMode.OverwritePartitions });
+        var result = await dataset.OverwriteAsync([new Sale { Id = 100, Date = Day1 }]);
 
-        var read = await dataset.ReadAsync().ToListAsync();
-        result.Deleted.Should().ContainSingle().Which.RelativePath.Should().StartWith("Date=2026-10-02/");
-        read.Where(s => s.Date == new DateOnly(2026, 10, 2)).Select(s => s.Id).Should().Equal(1000);
-        read.Count(s => s.Date != new DateOnly(2026, 10, 2)).Should().Be(20);
+        (await dataset.ReadAsync().Select(s => s.Id).ToListAsync()).Should().Equal(100);
+        result.Removed.Should().HaveCount(3);
+        (await FilesOf()).Should().ContainSingle().Which.Should().StartWith("Date=2026-10-01/");
     }
 
     [Test]
-    public async Task OverwritePartitions_without_partitions_replaces_the_dataset()
+    public async Task Overwrite_with_no_rows_empties_the_dataset()
     {
-        var dataset = DataLake.Open<Sale>(_lake.Root);
-        await dataset.WriteAsync(Sales(30));
-        _lake.Touch("_SUCCESS");
+        var dataset = Writable<Sale>();
+        await dataset.AppendAsync(Sales(30));
 
-        await dataset.WriteAsync(Sales(2, 100), new DatasetWriteOptions { Mode = DatasetWriteMode.OverwritePartitions });
+        await dataset.OverwriteAsync(Array.Empty<Sale>());
+
+        (await dataset.CountAsync()).Should().Be(0);
+    }
+
+    [Test]
+    public async Task Overwrite_keeps_hidden_files()
+    {
+        var dataset = Writable<Sale>();
+        await dataset.AppendAsync(Sales(30));
+        await Storage.WriteAsync($"{Location("data")}/_SUCCESS", new MemoryStream());
+
+        await dataset.OverwriteAsync(Sales(2, 100));
 
         (await dataset.ReadAsync().Select(s => s.Id).ToListAsync()).Should().Equal(100, 101);
-        File.Exists(_lake.PathOf("_SUCCESS")).Should().BeTrue("only data files are replaced");
+        (await FilesOf()).Should().Contain("_SUCCESS", "only data files are replaced");
+    }
+
+    [Test]
+    public async Task ReplacePartitions_replaces_only_the_partitions_written()
+    {
+        var dataset = Writable<Sale>(s => s.Date);
+        await dataset.AppendAsync(Sales(30));
+
+        var result = await dataset.ReplacePartitionsAsync([new Sale { Id = 1000, Date = Day2, Country = "PL", Amount = 1 }]);
+
+        var read = await dataset.ReadAsync().ToListAsync();
+        result.Removed.Should().ContainSingle().Which.RelativePath.Should().StartWith("Date=2026-10-02/");
+        read.Where(s => s.Date == Day2).Select(s => s.Id).Should().Equal(1000);
+        read.Count(s => s.Date != Day2).Should().Be(20);
+    }
+
+    [Test]
+    public async Task ReplacePartitions_with_no_rows_changes_nothing()
+    {
+        var dataset = Writable<Sale>(s => s.Date);
+        await dataset.AppendAsync(Sales(30));
+
+        await dataset.ReplacePartitionsAsync(Array.Empty<Sale>());
+
+        (await dataset.CountAsync()).Should().Be(30);
+    }
+
+    [Test]
+    public async Task ReplacePartitions_needs_partitions()
+    {
+        var replace = () => Writable<Sale>().ReplacePartitionsAsync(Sales(1));
+
+        (await replace.Should().ThrowAsync<InvalidOperationException>()).WithMessage("*'data' is not partitioned*OverwriteAsync*");
+    }
+
+    [Test]
+    public async Task Overwrite_with_a_filter_replaces_what_it_matches()
+    {
+        var dataset = Writable<Sale>(s => s.Date, s => s.Country);
+        await dataset.AppendAsync(Sales(120));
+
+        var result = await dataset.OverwriteAsync([new Sale { Id = 1000, Date = Day1, Country = "PL" }], where: s => s.Date == Day1 && s.Country == "PL");
+
+        var read = await dataset.ReadAsync().ToListAsync();
+        result.Removed.Should().ContainSingle();
+        read.Where(s => s.Date == Day1 && s.Country == "PL").Select(s => s.Id).Should().Equal(1000);
+        read.Should().HaveCount(120 - 10 + 1);
+    }
+
+    [Test]
+    public async Task Overwrite_with_a_filter_refuses_rows_outside_it_and_leaves_nothing_behind()
+    {
+        var dataset = Writable<Sale>(o => o.TargetFileSize(1), s => s.Date);
+        await dataset.AppendAsync(Sales(30));
+        var before = await FilesOf();
+
+        var overwrite = () => dataset.OverwriteAsync([new Sale { Id = 1, Date = Day1 }, new Sale { Id = 2, Date = Day1 }, new Sale { Id = 3, Date = Day2 }],
+            where: s => s.Date == Day1);
+
+        (await overwrite.Should().ThrowAsync<InvalidDataException>()).WithMessage("*does not match the filter*");
+        (await FilesOf()).Should().Equal(before);
+    }
+
+    [TestCase("row")]
+    [TestCase("opaque")]
+    public async Task Overwrite_with_a_filter_on_rows_is_not_supported_on_files(string kind)
+    {
+        var dataset = Writable<Sale>(s => s.Date);
+        await dataset.AppendAsync(Sales(30));
+        Expression<Func<Sale, bool>> where = kind == "row" ? s => s.Date == Day1 && s.Amount > 5 : s => s.Country!.StartsWith("P");
+
+        var delete = () => dataset.DeleteAsync(where);
+
+        (await delete.Should().ThrowAsync<NotSupportedException>()).WithMessage("*deletes whole files*partition columns (Date)*");
+        (await dataset.CountAsync()).Should().Be(30);
+    }
+
+    [Test]
+    public async Task Delete_removes_the_partitions_a_filter_matches()
+    {
+        var dataset = Writable<Sale>(s => s.Date);
+        await dataset.AppendAsync(Sales(30));
+
+        var result = await dataset.DeleteAsync(s => s.Date != Day2);
+
+        result.Rows.Should().Be(0);
+        result.Removed.Should().HaveCount(2);
+        (await dataset.ReadAsync().ToListAsync()).Should().OnlyContain(s => s.Date == Day2).And.HaveCount(10);
+    }
+
+    [Test]
+    public async Task Folders_written_by_Spark_in_another_case_are_the_same_partitions()
+    {
+        var spark = Writable<Sale>(s => s.Date);
+        var file = (await spark.AppendAsync([new Sale { Id = 1, Date = Day1 }])).Written[0];
+        var bytes = new byte[file.Length];
+        await Storage.ReadAsync(file, 0, bytes);
+        await Storage.WriteAsync($"{Location("lower")}/date=2026-10-01/part-00000.parquet", new MemoryStream(bytes));
+        var dataset = Lake(m => m.Dataset<Sale>("lower").PartitionBy(s => s.Date)).Dataset<Sale>("lower");
+
+        var result = await dataset.ReplacePartitionsAsync([new Sale { Id = 2, Date = Day1 }]);
+
+        result.Removed.Should().ContainSingle().Which.RelativePath.Should().Be("date=2026-10-01/part-00000.parquet");
+        (await dataset.ReadAsync().Select(s => s.Id).ToListAsync()).Should().Equal(2);
+    }
+
+    [Test]
+    public async Task Files_partitioned_differently_than_declared_stop_the_write()
+    {
+        await Writable<Sale>(s => s.Date).AppendAsync(Sales(3));
+        var unpartitioned = Lake(m => m.Dataset<Sale>("data")).Dataset<Sale>("data");
+
+        var overwrite = () => unpartitioned.OverwriteAsync(Sales(1));
+
+        (await overwrite.Should().ThrowAsync<InvalidOperationException>()).WithMessage("*partitioned by (Date)*declared with ()*");
+        (await unpartitioned.CountAsync()).Should().Be(3);
+    }
+
+    [Test]
+    public async Task Datasets_not_in_the_model_are_read_only()
+    {
+        var lake = Lake(m => m.Dataset<Sale>("sales"));
+
+        var write = () => lake.Dataset<Sale>("salse").AppendAsync(Sales(1));
+
+        (await write.Should().ThrowAsync<InvalidOperationException>()).WithMessage("*'salse' is not declared*model.Dataset<Sale>(\"salse\")*");
+        (await FilesOf("salse")).Should().BeEmpty();
+    }
+
+    [Test]
+    public void A_declared_dataset_has_one_row_type()
+    {
+        var lake = Lake(m => m.Dataset<Sale>("sales"));
+
+        FluentActions.Invoking(() => lake.Dataset<Order>("sales")).Should().Throw<InvalidOperationException>().WithMessage("*declared*for Sale, not Order*");
+    }
+
+    [Test]
+    public async Task A_dataset_that_does_not_exist_reads_as_empty()
+    {
+        var dataset = Lake().Dataset<Sale>("nothing-here");
+
+        (await dataset.ReadAsync().ToListAsync()).Should().BeEmpty();
+        (await dataset.CountAsync()).Should().Be(0);
+    }
+
+    [Test]
+    public async Task Count_comes_from_footers_or_from_a_filtered_read()
+    {
+        var dataset = Writable<Sale>(o => o.RowGroupSize(7), s => s.Date);
+        await dataset.AppendAsync(Sales(100));
+
+        (await dataset.CountAsync()).Should().Be(100);
+        (await dataset.Where(s => s.Date == Day1 && s.Amount >= 50).CountAsync()).Should().Be(17);
     }
 
     [Test]
     public async Task Large_writes_roll_over_to_new_files_and_row_groups()
     {
-        var rows = Enumerable.Range(0, 20_000).Select(i => new Sale { Id = i, Date = new DateOnly(2026, 1, 1), Country = $"country-{i}", Amount = i }).ToList();
+        var rows = Enumerable.Range(0, 20_000).Select(i => new Sale { Id = i, Date = Day1, Country = $"country-{i}", Amount = i }).ToList();
+        var dataset = Writable<Sale>(o => o.RowGroupSize(1000).TargetFileSize(50_000).Compression(ParquetCompression.Zstd));
 
-        var result = await DataLake.Open<Sale>(_lake.Root).WriteAsync(rows,
-            new DatasetWriteOptions { RowGroupSize = 1000, TargetFileSize = 50_000, Compression = ParquetCompression.Zstd });
+        var result = await dataset.AppendAsync(rows);
 
-        result.Files.Should().HaveCountGreaterThan(2).And.OnlyContain(f => f.RelativePath.EndsWith(".zstd.parquet"));
+        result.Written.Should().HaveCountGreaterThan(2).And.OnlyContain(f => f.RelativePath.EndsWith(".zstd.parquet"));
         var metrics = new ScanMetrics();
-        (await DataLake.Open<Sale>(_lake.Root).ReadAsync(metrics).CountAsync()).Should().Be(20_000);
+        (await dataset.ReadAsync(metrics).CountAsync()).Should().Be(20_000);
         metrics.RowGroups.Should().Be(20);
     }
 
@@ -426,50 +626,64 @@ public class DatasetWriteTests
     [TestCase(ParquetCompression.None)]
     public async Task Every_compression_reads_back(ParquetCompression compression)
     {
-        await DataLake.Open<Sale>(_lake.Root).WriteAsync(Sales(50), new DatasetWriteOptions { Compression = compression });
+        var dataset = Writable<Sale>(o => o.Compression(compression));
+        await dataset.AppendAsync(Sales(50));
 
-        (await DataLake.Open<Sale>(_lake.Root).ReadAsync().CountAsync()).Should().Be(50);
+        (await dataset.ReadAsync().CountAsync()).Should().Be(50);
     }
 
     [Test]
-    public async Task Values_that_would_be_changed_are_errors()
+    public async Task Values_that_would_be_changed_are_errors_and_leave_nothing_behind()
     {
-        var unspecified = () => DataLake.Open<Everything>(_lake.PathOf("a")).WriteAsync([new Everything { CreatedUtc = new DateTime(2026, 1, 1) }]);
-        var tooPrecise = () => DataLake.Open<Everything>(_lake.PathOf("b")).WriteAsync([new Everything { Amount = 1.234m }]);
-        var tooLarge = () => DataLake.Open<Everything>(_lake.PathOf("c")).WriteAsync([new Everything { Amount = 123_456_789m }]);
+        var dataset = Writable<Everything>();
+        var unspecified = () => dataset.AppendAsync([new Everything { CreatedUtc = new DateTime(2026, 1, 1) }]);
+        var tooPrecise = () => dataset.AppendAsync([new Everything { Amount = 1.234m }]);
+        var tooLarge = () => dataset.AppendAsync([new Everything { Amount = 123_456_789m }]);
 
         (await unspecified.Should().ThrowAsync<InvalidDataException>()).WithMessage("*CreatedUtc*Kind.Unspecified*UnzonedDateTime*");
         (await tooPrecise.Should().ThrowAsync<InvalidDataException>()).WithMessage("*Amount*1.234*more than 2 digits*");
         (await tooLarge.Should().ThrowAsync<InvalidDataException>()).WithMessage("*Amount*does not fit decimal(10, 2)*");
-        Directory.EnumerateFiles(_lake.Root, "*", SearchOption.AllDirectories).Should().BeEmpty("a failed write leaves nothing behind");
+        (await FilesOf()).Should().BeEmpty();
     }
 
     [Test]
-    public async Task Bad_options_are_errors()
+    public async Task A_failed_write_removes_the_files_it_already_wrote()
     {
-        var dataset = DataLake.Open<Sale>(_lake.Root);
+        var dataset = Writable<Sale>(o => o.RowGroupSize(10).TargetFileSize(1));
 
-        await FluentActions.Awaiting(() => dataset.WriteAsync(Sales(1), new DatasetWriteOptions { PartitionBy = ["Nope"] }))
-            .Should().ThrowAsync<ArgumentException>().WithMessage("*no property 'Nope'*");
-        await FluentActions.Awaiting(() => dataset.WriteAsync(Sales(1), new DatasetWriteOptions { PartitionBy = [nameof(Sale.Amount)] }))
-            .Should().ThrowAsync<NotSupportedException>().WithMessage("*Amount is Decimal*");
-        await FluentActions.Awaiting(() => dataset.Where(s => s.Id > 1).WriteAsync(Sales(1)))
-            .Should().ThrowAsync<InvalidOperationException>();
+        var append = () => dataset.AppendAsync(Failing());
+
+        await append.Should().ThrowAsync<TimeoutException>();
+        (await FilesOf()).Should().BeEmpty();
+
+        static async IAsyncEnumerable<Sale> Failing()
+        {
+            foreach (var sale in Sales(35)) yield return sale;
+            await Task.Yield();
+            throw new TimeoutException("source failed");
+        }
     }
 
     [Test]
-    public async Task A_read_only_storage_fails_before_writing()
+    public void Partition_properties_are_checked_when_the_dataset_is_first_used()
     {
-        var dataset = DataLake.Open<Sale>("mem://lake", new DataLakeOptions { Storage = new EmptyReadOnlyStorage() });
+        var notAProperty = Lake(m => m.Dataset<Sale>("data").PartitionBy(s => s.Amount + 1));
+        var wrongType = Lake(m => m.Dataset<Sale>("data").PartitionBy(s => s.Amount));
 
-        await FluentActions.Awaiting(() => dataset.WriteAsync(Sales(1))).Should().ThrowAsync<NotSupportedException>().WithMessage("*read-only*");
+        FluentActions.Invoking(() => notAProperty.Dataset<Sale>("data")).Should().Throw<ArgumentException>().WithMessage("*PartitionBy takes properties*");
+        FluentActions.Invoking(() => wrongType.Dataset<Sale>("data")).Should().Throw<NotSupportedException>().WithMessage("*Amount is Decimal*");
     }
 
-    private sealed class EmptyReadOnlyStorage : ILakeStorage
+    [Test]
+    public void The_in_memory_provider_writes_no_temporary_files()
     {
-        public bool CanHandle(string location) => location.StartsWith("mem://");
-        public IAsyncEnumerable<LakeFile> ListAsync(string location, CancellationToken cancellationToken = default) => AsyncEnumerable.Empty<LakeFile>();
-        public ValueTask<int> ReadAsync(LakeFile file, long offset, Memory<byte> buffer, CancellationToken cancellationToken = default) => ValueTask.FromResult(0);
+        if (provider != "memory") Assert.Ignore("local disk uses temporary files on purpose");
+        var before = Directory.GetFiles(Path.GetTempPath(), "datalake-*.parquet").Length;
+
+        Writable<Sale>(s => s.Date).AppendAsync(Sales(100)).GetAwaiter().GetResult();
+
+        Directory.GetFiles(Path.GetTempPath(), "datalake-*.parquet").Length.Should().Be(before);
+        _memory.Locations.Should().HaveCount(3).And.OnlyContain(l => l.StartsWith("memory://lake/data/Date="));
     }
 
     private static long Micros(DateTime utc) => (utc.Ticks - DateTime.UnixEpoch.Ticks) / 10;

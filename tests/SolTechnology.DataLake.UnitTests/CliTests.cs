@@ -80,9 +80,8 @@ public class CliTests
     [Test]
     public async Task Cat_prints_CSV_with_a_header_and_a_limit()
     {
-        var sales = DataLake.Open<Sale>(_lake.PathOf("sales"));
-        await sales.WriteAsync([new Sale { Id = 1, Name = "a, \"b\"", Tags = ["x"] }, new Sale { Id = 2 }, new Sale { Id = 3 }],
-            new DatasetWriteOptions { PartitionBy = [nameof(Sale.Country)] });
+        var sales = LakeContext.Create(o => o.UseParquet(_lake.Root), m => m.Dataset<Sale>("sales").PartitionBy(s => s.Country)).Dataset<Sale>("sales");
+        await sales.AppendAsync([new Sale { Id = 1, Name = "a, \"b\"", Tags = ["x"] }, new Sale { Id = 2 }, new Sale { Id = 3 }]);
 
         var (code, output, _) = await Run("cat", _lake.PathOf("sales"), "--format", "csv", "--limit", "2");
 
@@ -96,9 +95,9 @@ public class CliTests
     [Test]
     public async Task Stats_sums_files_rows_partitions_and_column_ranges()
     {
-        var sales = DataLake.Open<Sale>(_lake.PathOf("sales"));
-        await sales.WriteAsync(Enumerable.Range(0, 30).Select(i => new Sale { Id = i, Name = i % 3 == 0 ? null : $"n{i:00}", Country = i % 2 == 0 ? "PL" : "DE" }),
-            new DatasetWriteOptions { PartitionBy = [nameof(Sale.Country)], RowGroupSize = 10 });
+        var sales = LakeContext.Create(o => o.UseParquet(_lake.Root, configure: p => p.RowGroupSize(10)), m => m.Dataset<Sale>("sales").PartitionBy(s => s.Country))
+            .Dataset<Sale>("sales");
+        await sales.AppendAsync(Enumerable.Range(0, 30).Select(i => new Sale { Id = i, Name = i % 3 == 0 ? null : $"n{i:00}", Country = i % 2 == 0 ? "PL" : "DE" }));
 
         var (code, output, _) = await Run("stats", _lake.PathOf("sales"));
 

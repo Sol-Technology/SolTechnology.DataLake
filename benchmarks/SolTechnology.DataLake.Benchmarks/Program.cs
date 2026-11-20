@@ -94,21 +94,21 @@ public class DatasetBenchmarks
     private const long To = 405_000;
 
     [Benchmark]
-    public Task<List<Sale>> DataLake_all() => DataLake.Open<Sale>(_root).ReadAsync().ToListAsync().AsTask();
+    public Task<List<Sale>> DataLake_all() => Dataset.Open<Sale>(_root).ReadAsync().ToListAsync().AsTask();
 
     [Benchmark]
     public Task<List<Sale>> ParquetNet_all() => Manual(_ => true);
 
     [Benchmark]
     public Task<List<Sale>> DataLake_one_partition() =>
-        DataLake.Open<Sale>(_root).Where(s => s.Date == Day && s.Country == "PL").ReadAsync().ToListAsync().AsTask();
+        Dataset.Open<Sale>(_root).Where(s => s.Date == Day && s.Country == "PL").ReadAsync().ToListAsync().AsTask();
 
     [Benchmark]
     public Task<List<Sale>> ParquetNet_one_partition() => Manual(s => s.Date == Day && s.Country == "PL");
 
     [Benchmark]
     public Task<List<Sale>> DataLake_id_range() =>
-        DataLake.Open<Sale>(_root).Where(s => s.Id >= From && s.Id < To).ReadAsync().ToListAsync().AsTask();
+        Dataset.Open<Sale>(_root).Where(s => s.Id >= From && s.Id < To).ReadAsync().ToListAsync().AsTask();
 
     [Benchmark]
     public Task<List<Sale>> ParquetNet_id_range() => Manual(s => s.Id >= From && s.Id < To);

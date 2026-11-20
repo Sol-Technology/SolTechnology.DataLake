@@ -49,7 +49,7 @@ public class NestedColumnTests
         var expected = JsonNode.Parse(await File.ReadAllTextAsync(Path.Combine(Fixtures, "nested.json")))!.AsArray();
         var root = CopyFixture();
 
-        var rows = await DataLake.Open<Row>(root).ReadAsync().ToListAsync();
+        var rows = await Dataset.Open<Row>(root).ReadAsync().ToListAsync();
 
         rows.Should().HaveCount(expected.Count);
         for (var i = 0; i < rows.Count; i++)
@@ -69,7 +69,7 @@ public class NestedColumnTests
     {
         var root = CopyFixture();
 
-        var rows = await DataLake.Open<UntypedRow>(root).ReadAsync().ToListAsync();
+        var rows = await Dataset.Open<UntypedRow>(root).ReadAsync().ToListAsync();
 
         rows[0].Address.Should().BeEquivalentTo(new Dictionary<string, object?> { ["city"] = "Wroclaw", ["zip"] = "50-001" });
         ((IList)rows[0].Lines!).Count.Should().Be(2);
@@ -99,9 +99,9 @@ public class NestedColumnTests
     {
         var root = CopyFixture();
 
-        var structIntoString = () => DataLake.Open<WrongStruct>(root).ReadAsync().ToListAsync().AsTask();
-        var listIntoString = () => DataLake.Open<WrongList>(root).ReadAsync().ToListAsync().AsTask();
-        var nullElement = () => DataLake.Open<NullElementIntoNonNullable>(root).ReadAsync().ToListAsync().AsTask();
+        var structIntoString = () => Dataset.Open<WrongStruct>(root).ReadAsync().ToListAsync().AsTask();
+        var listIntoString = () => Dataset.Open<WrongList>(root).ReadAsync().ToListAsync().AsTask();
+        var nullElement = () => Dataset.Open<NullElementIntoNonNullable>(root).ReadAsync().ToListAsync().AsTask();
 
         (await structIntoString.Should().ThrowAsync<NotSupportedException>()).WithMessage("*'address' is a struct*not String*");
         (await listIntoString.Should().ThrowAsync<NotSupportedException>()).WithMessage("*'tags' is a list*not String*");
@@ -124,8 +124,8 @@ public class NestedColumnTests
         await using (var file = File.Create(Path.Combine(root, "blobs.parquet")))
             await Parquet.Serialization.ParquetSerializer.SerializeAsync(written, file, new Parquet.ParquetOptions { RowGroupSize = 1000 });
 
-        var typed = await DataLake.Open<BlobRow>(root).ReadAsync().ToListAsync();
-        var untyped = await DataLake.Open<UntypedBlobRow>(root).ReadAsync().ToListAsync();
+        var typed = await Dataset.Open<BlobRow>(root).ReadAsync().ToListAsync();
+        var untyped = await Dataset.Open<UntypedBlobRow>(root).ReadAsync().ToListAsync();
 
         typed.Should().BeEquivalentTo(written, o => o.WithStrictOrdering());
         untyped.Select(r => ((IList)r.Blobs!).Cast<byte[]>().ToList()).Should().BeEquivalentTo(written.Select(r => r.Blobs), o => o.WithStrictOrdering());
@@ -197,7 +197,7 @@ public class NestedColumnTests
             await group.WriteAllPartsAsync(schema.DataFields[2], (ReadOnlyMemory<int>)new[] { 11, 21 }, null, null, default);
         }
 
-        var rows = await DataLake.Open<WithRequiredStruct>(lake.Root).ReadAsync().ToListAsync();
+        var rows = await Dataset.Open<WithRequiredStruct>(lake.Root).ReadAsync().ToListAsync();
 
         rows.Select(r => (r.Id, r.S.A)).Should().Equal((1, 10), (2, 20));
     }

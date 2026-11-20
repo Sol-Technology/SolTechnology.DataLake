@@ -45,7 +45,7 @@ public class DatasetTests
     {
         await WritePartitionedOrders();
 
-        var rows = await DataLake.Open<Order>(_lake.Root).ReadAsync().ToListAsync();
+        var rows = await Dataset.Open<Order>(_lake.Root).ReadAsync().ToListAsync();
 
         rows.Should().HaveCount(60);
         rows.Select(r => r.Id).Should().Equal(Enumerable.Range(0, 60).Select(i => (long)i));
@@ -60,7 +60,7 @@ public class DatasetTests
         var metrics = new ScanMetrics();
         var day = new DateOnly(2026, 10, 2);
 
-        var rows = await DataLake.Open<Order>(_lake.Root).Where(o => o.Country == "PL" && o.Date == day).ReadAsync(metrics).ToListAsync();
+        var rows = await Dataset.Open<Order>(_lake.Root).Where(o => o.Country == "PL" && o.Date == day).ReadAsync(metrics).ToListAsync();
 
         metrics.Files.Should().Be(6);
         metrics.FilesSkippedByPartition.Should().Be(5);
@@ -76,7 +76,7 @@ public class DatasetTests
         var countries = new List<string> { "PL" };
         var from = new DateOnly(2026, 10, 2);
 
-        var rows = await DataLake.Open<Order>(_lake.Root).Where(o => countries.Contains(o.Country)).Where(o => o.Date >= from).ReadAsync(metrics).ToListAsync();
+        var rows = await Dataset.Open<Order>(_lake.Root).Where(o => countries.Contains(o.Country)).Where(o => o.Date >= from).ReadAsync(metrics).ToListAsync();
 
         metrics.FilesSkippedByPartition.Should().Be(4);
         rows.Should().HaveCount(20).And.OnlyContain(r => r.Country == "PL" && r.Date >= from);
@@ -88,7 +88,7 @@ public class DatasetTests
         await WritePartitionedOrders();
         var metrics = new ScanMetrics();
 
-        var rows = await DataLake.Open<Order>(_lake.Root).Where(o => new[] { "PL" }.Contains(o.Country) && new[] { 3L, 13L }.Contains(o.Id)).ReadAsync(metrics).ToListAsync();
+        var rows = await Dataset.Open<Order>(_lake.Root).Where(o => new[] { "PL" }.Contains(o.Country) && new[] { 3L, 13L }.Contains(o.Id)).ReadAsync(metrics).ToListAsync();
 
         metrics.FilesSkippedByPartition.Should().Be(3);
         rows.Select(r => r.Id).Should().Equal(13L);
@@ -105,7 +105,7 @@ public class DatasetTests
         await _lake.WriteAsync("orders.parquet", OrderColumns, groups);
         var metrics = new ScanMetrics();
 
-        var rows = await DataLake.Open<Evolved>(_lake.Root).Where(o => o.Id >= 950).ReadAsync(metrics).ToListAsync();
+        var rows = await Dataset.Open<Evolved>(_lake.Root).Where(o => o.Id >= 950).ReadAsync(metrics).ToListAsync();
 
         metrics.RowGroups.Should().Be(10);
         metrics.RowGroupsSkippedByStatistics.Should().Be(9);
@@ -118,7 +118,7 @@ public class DatasetTests
         await WritePartitionedOrders();
         var metrics = new ScanMetrics();
 
-        var rows = await DataLake.Open<Order>(_lake.Root).Where(o => o.Id % 7 == 0 && o.Customer!.EndsWith('1')).ReadAsync(metrics).ToListAsync();
+        var rows = await Dataset.Open<Order>(_lake.Root).Where(o => o.Id % 7 == 0 && o.Customer!.EndsWith('1')).ReadAsync(metrics).ToListAsync();
 
         metrics.FilesSkippedByPartition.Should().Be(0);
         rows.Select(r => r.Id).Should().Equal(Enumerable.Range(0, 60).Where(i => i % 7 == 0 && i % 3 == 1).Select(i => (long)i));
@@ -129,9 +129,9 @@ public class DatasetTests
     {
         await WritePartitionedOrders();
 
-        var nulls = await DataLake.Open<Order>(_lake.Root).Where(o => o.Amount == null).ReadAsync().ToListAsync();
-        var notFifteen = await DataLake.Open<Order>(_lake.Root).Where(o => o.Amount != 15m).ReadAsync().ToListAsync();
-        var greater = await DataLake.Open<Order>(_lake.Root).Where(o => o.Amount > 80m).ReadAsync().ToListAsync();
+        var nulls = await Dataset.Open<Order>(_lake.Root).Where(o => o.Amount == null).ReadAsync().ToListAsync();
+        var notFifteen = await Dataset.Open<Order>(_lake.Root).Where(o => o.Amount != 15m).ReadAsync().ToListAsync();
+        var greater = await Dataset.Open<Order>(_lake.Root).Where(o => o.Amount > 80m).ReadAsync().ToListAsync();
 
         nulls.Should().HaveCount(15).And.OnlyContain(r => r.Id % 4 == 0);
         notFifteen.Should().HaveCount(59, "null != 15 is true in C#");
@@ -151,7 +151,7 @@ public class DatasetTests
         await _lake.WriteAsync("x.parquet", [new DataField<long>("ORDER_ID"), new DataField<string>("customer_name"), new DataField<decimal?>("AMT")],
             [new long[] { 7 }, new string?[] { "Ann" }, new decimal?[] { 1.5m }]);
 
-        var rows = await DataLake.Open<SnakeOrder>(_lake.Root, new DataLakeOptions { ColumnNaming = JsonNamingPolicy.SnakeCaseLower }).ReadAsync().ToListAsync();
+        var rows = await Dataset.Open<SnakeOrder>(_lake.Root, new DataLakeOptions { ColumnNaming = JsonNamingPolicy.SnakeCaseLower }).ReadAsync().ToListAsync();
 
         rows.Should().ContainSingle().Which.Should().BeEquivalentTo(new SnakeOrder { OrderId = 7, CustomerName = "Ann", Amount = 1.5m });
     }
@@ -175,8 +175,8 @@ public class DatasetTests
         await _lake.WriteAsync("b/new.parquet", [new DataField<long>("Id"), new DataField<string>("Note"), new DataField<long>("Version")],
             [new long[] { 2 }, new string?[] { "added" }, new long[] { 3 }]);
 
-        var rows = await DataLake.Open<Evolved>(_lake.Root).ReadAsync().ToListAsync();
-        var strict = () => DataLake.Open<Strict>(_lake.Root).ReadAsync().ToListAsync().AsTask();
+        var rows = await Dataset.Open<Evolved>(_lake.Root).ReadAsync().ToListAsync();
+        var strict = () => Dataset.Open<Strict>(_lake.Root).ReadAsync().ToListAsync().AsTask();
 
         rows.Should().BeEquivalentTo([new Evolved { Id = 1, Note = null }, new Evolved { Id = 2, Note = "added" }]);
         (await strict.Should().ThrowAsync<InvalidDataException>()).WithMessage("*old.parquet has no column 'Version'*nullable*");
@@ -192,7 +192,7 @@ public class DatasetTests
     {
         await _lake.WriteAsync("x.parquet", [new DataField<decimal?>("Amount")], [new decimal?[] { 1m, null }]);
 
-        var read = () => DataLake.Open<NotNullAmount>(_lake.Root).ReadAsync().ToListAsync().AsTask();
+        var read = () => Dataset.Open<NotNullAmount>(_lake.Root).ReadAsync().ToListAsync().AsTask();
 
         (await read.Should().ThrowAsync<InvalidDataException>()).WithMessage("*'Amount' has a null value*Decimal?*");
     }
@@ -212,7 +212,7 @@ public class DatasetTests
         await _lake.WriteAsync("x.parquet", [new DataField<int>("Count"), new DataField<int?>("Ratio"), new DataField<string>("Status")],
             [new[] { 5 }, new int?[] { 2 }, new string?[] { "paid" }]);
 
-        var row = (await DataLake.Open<Widened>(_lake.Root).ReadAsync().ToListAsync()).Single();
+        var row = (await Dataset.Open<Widened>(_lake.Root).ReadAsync().ToListAsync()).Single();
 
         row.Should().BeEquivalentTo(new Widened { Count = 5, Ratio = 2, Status = Status.Paid });
     }
@@ -227,7 +227,7 @@ public class DatasetTests
     {
         await _lake.WriteAsync("x.parquet", [new DataField<long>("Id")], [new long[] { 1 }]);
 
-        var read = () => DataLake.Open<Lossy>(_lake.Root).ReadAsync().ToListAsync().AsTask();
+        var read = () => Dataset.Open<Lossy>(_lake.Root).ReadAsync().ToListAsync().AsTask();
 
         (await read.Should().ThrowAsync<NotSupportedException>()).WithMessage("*'Id' of type Int64 can't be read into Int32*");
     }
@@ -249,10 +249,10 @@ public class DatasetTests
         await _lake.WriteAsync("utc/x.parquet", [new DateTimeDataField("At", Parquet.Schema.DateTimeFormat.Timestamp, isAdjustedToUTC: true)], [new[] { at }]);
         await _lake.WriteAsync("local/x.parquet", [new DateTimeDataField("At", Parquet.Schema.DateTimeFormat.Timestamp, isAdjustedToUTC: false)], [new[] { at }]);
 
-        var utc = (await DataLake.Open<Event>(_lake.PathOf("utc")).ReadAsync().ToListAsync()).Single();
-        var utcAsDateTime = (await DataLake.Open<LocalEvent>(_lake.PathOf("utc")).ReadAsync().ToListAsync()).Single();
-        var local = (await DataLake.Open<LocalEvent>(_lake.PathOf("local")).ReadAsync().ToListAsync()).Single();
-        var localAsOffset = () => DataLake.Open<Event>(_lake.PathOf("local")).ReadAsync().ToListAsync().AsTask();
+        var utc = (await Dataset.Open<Event>(_lake.PathOf("utc")).ReadAsync().ToListAsync()).Single();
+        var utcAsDateTime = (await Dataset.Open<LocalEvent>(_lake.PathOf("utc")).ReadAsync().ToListAsync()).Single();
+        var local = (await Dataset.Open<LocalEvent>(_lake.PathOf("local")).ReadAsync().ToListAsync()).Single();
+        var localAsOffset = () => Dataset.Open<Event>(_lake.PathOf("local")).ReadAsync().ToListAsync().AsTask();
 
         utc.At.Should().Be(new DateTimeOffset(at));
         utcAsDateTime.At.Kind.Should().Be(DateTimeKind.Utc);
@@ -277,10 +277,10 @@ public class DatasetTests
         await _lake.WriteAsync("utc/x.parquet", [new DateTimeDataField("At", Parquet.Schema.DateTimeFormat.Timestamp, isAdjustedToUTC: true)], [new[] { at }]);
         await _lake.WriteAsync("local/x.parquet", [new DateTimeDataField("At", Parquet.Schema.DateTimeFormat.Timestamp, isAdjustedToUTC: false)], [new[] { at }]);
 
-        var zoned = (await DataLake.Open<ZonedEvent>(_lake.PathOf("utc")).ReadAsync().ToListAsync()).Single();
-        var unzoned = (await DataLake.Open<UnzonedEvent>(_lake.PathOf("local")).ReadAsync().ToListAsync()).Single();
-        var instantAsUnzoned = () => DataLake.Open<UnzonedEvent>(_lake.PathOf("utc")).ReadAsync().ToListAsync().AsTask();
-        var wallClockAsZoned = () => DataLake.Open<ZonedEvent>(_lake.PathOf("local")).ReadAsync().ToListAsync().AsTask();
+        var zoned = (await Dataset.Open<ZonedEvent>(_lake.PathOf("utc")).ReadAsync().ToListAsync()).Single();
+        var unzoned = (await Dataset.Open<UnzonedEvent>(_lake.PathOf("local")).ReadAsync().ToListAsync()).Single();
+        var instantAsUnzoned = () => Dataset.Open<UnzonedEvent>(_lake.PathOf("utc")).ReadAsync().ToListAsync().AsTask();
+        var wallClockAsZoned = () => Dataset.Open<ZonedEvent>(_lake.PathOf("local")).ReadAsync().ToListAsync().AsTask();
 
         zoned.At.ToDateTimeOffset().Should().Be(new DateTimeOffset(at));
         zoned.At.Zone.Should().Be(TimeZoneInfo.Utc);
@@ -300,7 +300,7 @@ public class DatasetTests
         var metrics = new ScanMetrics();
         var from = DateTimeZone.FromUtc(day1.AddDays(1), TimeZoneInfo.Utc);
 
-        var rows = await DataLake.Open<ZonedEvent>(_lake.Root).Where(e => e.At >= from).ReadAsync(metrics).ToListAsync();
+        var rows = await Dataset.Open<ZonedEvent>(_lake.Root).Where(e => e.At >= from).ReadAsync(metrics).ToListAsync();
 
         metrics.RowGroupsSkippedByStatistics.Should().Be(1);
         rows.Should().HaveCount(24).And.OnlyContain(e => e.At >= from);
@@ -317,7 +317,7 @@ public class DatasetTests
     {
         await _lake.WriteAsync("hour=2026-10-29T12%3A00%3A00/part-0.parquet", [new DataField<long>("Id")], [new long[] { 1 }]);
 
-        var row = (await DataLake.Open<HourlyRow>(_lake.Root).ReadAsync().ToListAsync()).Single();
+        var row = (await Dataset.Open<HourlyRow>(_lake.Root).ReadAsync().ToListAsync()).Single();
 
         row.Hour.Should().Be(new UnzonedDateTime(2026, 10, 29, 12));
     }
@@ -332,7 +332,7 @@ public class DatasetTests
         _lake.Touch("README.md");
         var metrics = new ScanMetrics();
 
-        var rows = await DataLake.Open<Order>(_lake.Root).ReadAsync(metrics).ToListAsync();
+        var rows = await Dataset.Open<Order>(_lake.Root).ReadAsync(metrics).ToListAsync();
 
         metrics.Files.Should().Be(1);
         rows.Should().ContainSingle().Which.Id.Should().Be(1);
@@ -343,7 +343,7 @@ public class DatasetTests
     {
         await _lake.WriteAsync("country=__HIVE_DEFAULT_PARTITION__/part-0.parquet", [new DataField<long>("Id")], [new long[] { 1 }]);
 
-        var nullable = await DataLake.Open<CountryRow>(_lake.Root).ReadAsync().ToListAsync();
+        var nullable = await Dataset.Open<CountryRow>(_lake.Root).ReadAsync().ToListAsync();
 
         nullable.Should().ContainSingle().Which.Country.Should().BeNull();
     }
@@ -357,7 +357,7 @@ public class DatasetTests
     [Test]
     public void Location_without_storage_is_an_error()
     {
-        var open = () => DataLake.Open<Order>("s3://bucket/orders/");
+        var open = () => Dataset.Open<Order>("s3://bucket/orders/");
 
         open.Should().Throw<NotSupportedException>().WithMessage("*No storage for 's3://bucket/orders/'*SolTechnology.DataLake.Aws*");
     }
@@ -367,7 +367,7 @@ public class DatasetTests
     {
         await _lake.WriteAsync("country=PL/orders.parquet", OrderColumns, [new long[] { 1, 2 }, new decimal?[] { 1m, 2m }, new[] { "a", "b" }]);
 
-        var rows = await DataLake.Open<CountryRow>(_lake.PathOf("country=PL/orders.parquet")).ReadAsync().ToListAsync();
+        var rows = await Dataset.Open<CountryRow>(_lake.PathOf("country=PL/orders.parquet")).ReadAsync().ToListAsync();
 
         // Partitions come from the path under the opened location, so a single file has none.
         rows.Select(r => r.Id).Should().Equal(1, 2);
@@ -382,7 +382,7 @@ public class DatasetTests
         await _lake.WriteAsync("orders.parquet/part-00001.parquet", OrderColumns, [new long[] { 2 }, new decimal?[] { 2m }, new[] { "b" }]);
         _lake.Touch("orders.parquet/_SUCCESS");
 
-        var rows = await DataLake.Open<CountryRow>(_lake.PathOf("orders.parquet")).ReadAsync().ToListAsync();
+        var rows = await Dataset.Open<CountryRow>(_lake.PathOf("orders.parquet")).ReadAsync().ToListAsync();
 
         rows.Select(r => r.Id).Should().Equal(1, 2);
     }

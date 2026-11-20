@@ -23,14 +23,16 @@ public class NestedBenchmarks
             Address = new NestedAddress { City = $"city-{i % 100}", Zip = i % 3 == 0 ? null : i % 99_999 },
             Lines = Enumerable.Range(0, 3).Select(l => new NestedLine { Sku = $"sku-{(i + l) % 500}", Quantity = l + 1, Price = l == 2 ? null : (i + l) / 100m }).ToList(),
         });
-        await DataLake.Open<NestedOrder>(_root).WriteAsync(orders, new DatasetWriteOptions { RowGroupSize = 50_000 });
+        var lake = LakeContext.Create(o => o.UseParquet(Path.GetDirectoryName(_root)!, configure: p => p.RowGroupSize(50_000)),
+            m => m.Dataset<NestedOrder>(Path.GetFileName(_root)));
+        await lake.Dataset<NestedOrder>(Path.GetFileName(_root)).AppendAsync(orders);
     }
 
     [GlobalCleanup]
     public void DeleteFile() => Directory.Delete(_root, recursive: true);
 
     [Benchmark]
-    public Task<List<NestedOrder>> DataLake_nested() => DataLake.Open<NestedOrder>(_root).ReadAsync().ToListAsync().AsTask();
+    public Task<List<NestedOrder>> DataLake_nested() => Dataset.Open<NestedOrder>(_root).ReadAsync().ToListAsync().AsTask();
 
     [Benchmark]
     public async Task<IList<NestedOrder>> ParquetNet_nested() =>

@@ -62,11 +62,14 @@ public class WriteInteropTests
     public static async Task WriteAndReadElsewhere()
     {
         _rows = Enumerable.Range(0, 300).Select(Row).ToList();
-        var location = $"s3://{SiloFixture.Bucket}/interop/{Guid.NewGuid():N}/orders";
+        var root = $"s3://{SiloFixture.Bucket}/interop/{Guid.NewGuid():N}";
+        var location = $"{root}/orders";
         using var s3 = Silo.CreateClient();
 
-        await DataLake.Open<Order>(location, new DataLakeOptions { Storage = new S3Storage(s3) })
-            .WriteAsync(_rows, new DatasetWriteOptions { PartitionBy = [nameof(Order.Date), nameof(Order.Country)], RowGroupSize = 10 });
+        var lake = LakeContext.Create(
+            o => o.UseParquet(root, new S3Storage(s3), p => p.RowGroupSize(10)),
+            m => m.Dataset<Order>("orders").PartitionBy(r => r.Date, r => r.Country));
+        await lake.Dataset<Order>("orders").AppendAsync(_rows);
 
         var from = _rows[250].CreatedAt.UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ss.ffffffZ");
         var json = await PyIceberg.RunAsync("interop.json", ["python", "/scripts/interop.py", "interop", location, "CreatedAt", from]);

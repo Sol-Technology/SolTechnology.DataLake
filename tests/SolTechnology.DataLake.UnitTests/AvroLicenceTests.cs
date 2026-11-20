@@ -26,7 +26,7 @@ public class AvroLicenceTests
             Console.SetError(stderr);
 
             ResetNotice();
-            await DataLake.Open<IdOnly>(lake.Root).ReadAsync().ToListAsync();
+            await Dataset.Open<IdOnly>(lake.Root).ReadAsync().ToListAsync();
             var afterDataLake = stderr.ToString();
 
             ResetNotice();

@@ -45,7 +45,7 @@ public class AvroTests
         public string Region { get; set; } = "";
     }
 
-    private Dataset<Order> Open() => DataLake.Open<Order>(_lake.Root, new DataLakeOptions { ColumnNaming = JsonNamingPolicy.SnakeCaseLower });
+    private IDatasetQuery<Order> Open() => Dataset.Open<Order>(_lake.Root, new DataLakeOptions { ColumnNaming = JsonNamingPolicy.SnakeCaseLower });
 
     [Test]
     public async Task Reads_records_like_Parquet_rows()
@@ -105,8 +105,8 @@ public class AvroTests
     {
         Copy("orders.avro");
 
-        var localIntoOffset = () => DataLake.Open<Instant>(_lake.Root).ReadAsync().ToListAsync().AsTask();
-        var missing = () => DataLake.Open<MissingColumn>(_lake.Root).ReadAsync().ToListAsync().AsTask();
+        var localIntoOffset = () => Dataset.Open<Instant>(_lake.Root).ReadAsync().ToListAsync().AsTask();
+        var missing = () => Dataset.Open<MissingColumn>(_lake.Root).ReadAsync().ToListAsync().AsTask();
 
         (await localIntoOffset.Should().ThrowAsync<NotSupportedException>()).WithMessage("*'local_at' is a timestamp without a time zone*UnzonedDateTime*");
         (await missing.Should().ThrowAsync<InvalidDataException>()).WithMessage("*orders.avro has no column 'Version'*");

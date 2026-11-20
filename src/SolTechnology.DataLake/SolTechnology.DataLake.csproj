@@ -11,6 +11,7 @@
 	<ItemGroup>
 		<PackageReference Include="Apache.Arrow" />
 		<PackageReference Include="AvroConvert" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
 		<PackageReference Include="Parquet.Net" />
 		<PackageReference Include="SolTechnology.DateTimeZone" />
 	</ItemGroup>

@@ -3,7 +3,7 @@ using SolTechnology.DataLake.Storage;
 
 namespace SolTechnology.DataLake;
 
-/// <summary>Options for <see cref="DataLake.Open{T}"/>.</summary>
+/// <summary>Options for <see cref="Dataset.Open{T}"/>. A <see cref="LakeContext"/> is configured with <see cref="LakeContextOptionsBuilder"/> instead.</summary>
 public sealed class DataLakeOptions
 {
     /// <summary>Storage for locations that are not local paths, e.g. <c>S3Storage</c> from SolTechnology.DataLake.Aws.</summary>

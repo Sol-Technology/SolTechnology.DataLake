@@ -34,7 +34,7 @@ public class StatisticsTests
         var metrics = new ScanMetrics();
         var from = DateTimeZone.FromUtc(Day1.AddDays(1), TimeZoneInfo.Utc);
 
-        var rows = await DataLake.Open<Event>(_lake.Root).Where(e => e.At >= from).ReadAsync(metrics).ToListAsync();
+        var rows = await Dataset.Open<Event>(_lake.Root).Where(e => e.At >= from).ReadAsync(metrics).ToListAsync();
 
         rows.Should().HaveCount(24, "trusting the statistics would skip both row groups");
         metrics.RowGroupsSkippedByStatistics.Should().Be(0);
@@ -47,7 +47,7 @@ public class StatisticsTests
         var metrics = new ScanMetrics();
         var from = DateTimeZone.FromUtc(Day1.AddDays(1), TimeZoneInfo.Utc);
 
-        var rows = await DataLake.Open<Event>(_lake.Root).Where(e => e.At >= from).ReadAsync(metrics).ToListAsync();
+        var rows = await Dataset.Open<Event>(_lake.Root).Where(e => e.At >= from).ReadAsync(metrics).ToListAsync();
 
         rows.Should().HaveCount(24);
         metrics.RowGroupsSkippedByStatistics.Should().Be(1);
@@ -68,8 +68,8 @@ public class StatisticsTests
         var byAmount = new ScanMetrics();
         var byDay = new ScanMetrics();
 
-        var expensive = await DataLake.Open<Priced>(_lake.Root).Where(p => p.Amount > 16m).ReadAsync(byAmount).ToListAsync();
-        var late = await DataLake.Open<Priced>(_lake.Root).Where(p => p.Day >= days[2]).ReadAsync(byDay).ToListAsync();
+        var expensive = await Dataset.Open<Priced>(_lake.Root).Where(p => p.Amount > 16m).ReadAsync(byAmount).ToListAsync();
+        var late = await Dataset.Open<Priced>(_lake.Root).Where(p => p.Day >= days[2]).ReadAsync(byDay).ToListAsync();
 
         byAmount.RowGroupsSkippedByStatistics.Should().Be(2);
         expensive.Select(p => p.Amount).Should().Equal(20m, 25m);
@@ -90,7 +90,7 @@ public class StatisticsTests
         var metrics = new ScanMetrics();
         var from = DateTimeZone.FromUtc(new DateTime(2026, 10, 3, 0, 0, 0, DateTimeKind.Utc), TimeZoneInfo.Utc);
 
-        var rows = await DataLake.Open<IcebergOrder>(root).Where(o => o.CreatedAt >= from).ReadAsync(metrics).ToListAsync();
+        var rows = await Dataset.Open<IcebergOrder>(root).Where(o => o.CreatedAt >= from).ReadAsync(metrics).ToListAsync();
 
         rows.Should().HaveCount(12).And.OnlyContain(o => o.CreatedAt >= from);
         metrics.RowGroupsSkippedByStatistics.Should().Be(6, "9 files, one per country and day; 6 are before 3 October");

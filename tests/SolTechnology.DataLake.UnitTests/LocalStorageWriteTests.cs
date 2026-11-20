@@ -114,7 +114,7 @@ public class LocalStorageWriteTests
             await _storage.WriteAsync(_lake.PathOf("orders/date=2026-10-01/part-0.parquet"), parquet);
         source.Dispose();
 
-        var rows = await DataLake.Open<Order>(_lake.PathOf("orders")).ReadAsync().ToListAsync();
+        var rows = await Dataset.Open<Order>(_lake.PathOf("orders")).ReadAsync().ToListAsync();
 
         rows.Select(r => (r.Id, r.Date)).Should().Equal((1, new DateOnly(2026, 10, 1)), (2, new DateOnly(2026, 10, 1)), (3, new DateOnly(2026, 10, 1)));
     }

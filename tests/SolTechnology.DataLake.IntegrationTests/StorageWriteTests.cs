@@ -112,6 +112,30 @@ public abstract class StorageWriteTests
         (await _storage.ListAsync(_root).ToListAsync()).Should().BeEmpty();
     }
 
+    public sealed class Sale
+    {
+        public long Id { get; set; }
+        public string Country { get; set; } = "";
+    }
+
+    [Test]
+    public async Task A_context_appends_replaces_and_deletes_partitions_on_this_storage()
+    {
+        var lake = LakeContext.Create(o => o.UseParquet(_root, _storage), m => m.Dataset<Sale>("sales").PartitionBy(s => s.Country));
+        var sales = lake.Dataset<Sale>("sales");
+        (await sales.CountAsync()).Should().Be(0, "a dataset that does not exist yet reads as empty");
+
+        await sales.AppendAsync(Enumerable.Range(0, 30).Select(i => new Sale { Id = i, Country = (i % 3) switch { 0 => "PL", 1 => "DE", _ => "a/b" } }));
+        var replaced = await sales.ReplacePartitionsAsync([new Sale { Id = 100, Country = "PL" }]);
+        var deleted = await sales.DeleteAsync(s => s.Country == "a/b");
+
+        replaced.Removed.Should().ContainSingle().Which.RelativePath.Should().StartWith("Country=PL/");
+        deleted.Removed.Should().ContainSingle().Which.RelativePath.Should().StartWith("Country=a%2Fb/");
+        (await sales.ReadAsync().OrderBy(s => s.Id).Select(s => s.Id).ToListAsync())
+            .Should().Equal(Enumerable.Range(0, 30).Where(i => i % 3 == 1).Select(i => (long)i).Append(100));
+        (await sales.CountAsync()).Should().Be(11);
+    }
+
     private async Task<byte[]> ReadAll(LakeFile file)
     {
         var bytes = new byte[file.Length];

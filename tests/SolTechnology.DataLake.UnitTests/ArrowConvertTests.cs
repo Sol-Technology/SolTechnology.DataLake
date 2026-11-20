@@ -245,7 +245,7 @@ public class ArrowConvertTests
         }
         var metrics = new ScanMetrics();
 
-        var rows = await DataLake.Open<Sale>(lake.Root).Where(s => s.Country == "PL" && s.Amount > 4).ReadAsync(metrics).ToListAsync();
+        var rows = await Dataset.Open<Sale>(lake.Root).Where(s => s.Country == "PL" && s.Amount > 4).ReadAsync(metrics).ToListAsync();
 
         rows.Select(r => (r.Id, r.Country)).Should().Equal((3, "PL"), (4, "PL"));
         metrics.FilesSkippedByPartition.Should().Be(1);
