@@ -86,9 +86,11 @@ internal sealed class DatasetWriter<T> where T : class
                 await FinishFileAsync(partition, ct).ConfigureAwait(false);
             }
         }
-        catch
+        catch (Exception e)
         {
-            await RemoveWrittenAsync().ConfigureAwait(false);
+            // The write failure is what the caller needs; files that could not be removed are listed on it.
+            var left = await RemoveWrittenAsync().ConfigureAwait(false);
+            if (left.Count > 0) e.Data["SolTechnology.DataLake.LeftoverFiles"] = left.Select(f => f.Location).ToArray();
             throw;
         }
         finally
@@ -121,8 +123,13 @@ internal sealed class DatasetWriter<T> where T : class
             {
                 if (removed.Count == 0 && failed.Count == 0)
                 {
-                    await RemoveWrittenAsync().ConfigureAwait(false);
-                    throw new IOException($"Could not remove {file.Location} from '{_spec.Name}'; the new files were removed again, nothing changed.", e);
+                    var left = await RemoveWrittenAsync().ConfigureAwait(false);
+                    if (left.Count == 0)
+                        throw new IOException($"Could not remove {file.Location} from '{_spec.Name}'; the new files were removed again, nothing changed.", e);
+                    // Usually the same cause (no delete permission, storage down): old and new rows are both read now.
+                    throw new IOException(
+                        $"Could not remove {file.Location} from '{_spec.Name}', nor the new files again: rows are now read twice. " +
+                        $"Delete either the old files or these new ones: {string.Join(", ", left.Select(f => f.Location))}.", e);
                 }
                 failed.Add((file, e));
             }
@@ -260,8 +267,10 @@ internal sealed class DatasetWriter<T> where T : class
         await partition.DisposeAsync().ConfigureAwait(false);
     }
 
-    private async Task RemoveWrittenAsync()
+    /// <summary>Removes the files this write wrote, best effort. Returns the ones that are still there.</summary>
+    private async Task<List<LakeFile>> RemoveWrittenAsync()
     {
+        var left = new List<LakeFile>();
         foreach (var file in _written)
         {
             try
@@ -270,9 +279,10 @@ internal sealed class DatasetWriter<T> where T : class
             }
             catch (Exception e) when (e is not OutOfMemoryException)
             {
-                // Best effort: the original failure matters more than a leftover file.
+                left.Add(file);
             }
         }
+        return left;
     }
 
     private string Extension() => _options.CompressionValue switch

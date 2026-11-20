@@ -210,8 +210,9 @@ internal static class PredicateTranslator
         from = Nullable.GetUnderlyingType(from) ?? from;
         to = Nullable.GetUnderlyingType(to) ?? to;
         if (from == to) return true;
-        if (from.IsEnum && Enum.GetUnderlyingType(from) == to) return true;
-        if (to.IsEnum && Enum.GetUnderlyingType(to) == from) return true;
+        // C# compares a byte or short enum as int: Convert(x.E, Int32). An enum is lossless wherever its underlying type is.
+        if (from.IsEnum) return Lossless(Enum.GetUnderlyingType(from), to);
+        if (to.IsEnum) return Lossless(from, Enum.GetUnderlyingType(to));
         return Widening.TryGetValue(from, out var wider) && wider.Contains(to);
     }
 

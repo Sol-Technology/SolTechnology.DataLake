@@ -723,6 +723,28 @@ public class DatasetWriteTests(string provider)
         read.Select(v => v.Id).Should().Equal(2);
     }
 
+    public enum Tier : byte { Free = 0, Paid = 1 }
+
+    public sealed class Account
+    {
+        public long Id { get; set; }
+        public Tier Tier { get; set; }
+    }
+
+    [Test]
+    public async Task Byte_enum_partitions_can_be_deleted_and_skipped_by_filter()
+    {
+        var dataset = Writable<Account>(a => a.Tier);
+        await dataset.AppendAsync([new Account { Id = 1, Tier = Tier.Free }, new Account { Id = 2, Tier = Tier.Paid }]);
+        var metrics = new ScanMetrics();
+
+        (await dataset.Where(a => a.Tier == Tier.Paid).ReadAsync(metrics).Select(a => a.Id).ToListAsync()).Should().Equal(2);
+        metrics.FilesSkippedByPartition.Should().Be(1);
+
+        await dataset.DeleteAsync(a => a.Tier == Tier.Free);
+        (await dataset.ReadAsync().Select(a => a.Id).ToListAsync()).Should().Equal(2);
+    }
+
     [Test]
     public async Task An_empty_string_partition_is_null_for_filters_too()
     {
@@ -763,13 +785,32 @@ public class DatasetWriteTests(string provider)
         (await overwrite.Should().ThrowAsync<IOException>()).WithMessage("*has the new data, but 2 old file(s) could not be removed*Date=2026-10-0*");
     }
 
-    private sealed class FlakyDeletes(MemoryStorage inner, int failAfter) : ILakeStorage
+    [Test]
+    public async Task When_nothing_can_be_removed_the_error_says_rows_are_read_twice()
+    {
+        var storage = new FlakyDeletes(new MemoryStorage(), failAfter: 0, newFilesToo: true);
+        var dataset = LakeContext.Create(o => o.UseParquet("memory://lake", storage), m => m.Dataset<Sale>("data").PartitionBy(s => s.Date)).Dataset<Sale>("data");
+        await dataset.AppendAsync(Sales(30));
+        storage.Arm();
+
+        var overwrite = () => dataset.OverwriteAsync(Sales(3, 100));
+
+        (await overwrite.Should().ThrowAsync<IOException>()).WithMessage("*nor the new files again: rows are now read twice*memory://lake/data/Date=*");
+        (await dataset.CountAsync()).Should().Be(33);
+    }
+
+    private sealed class FlakyDeletes(MemoryStorage inner, int failAfter, bool newFilesToo = false) : ILakeStorage
     {
         private HashSet<string> _old = [];
+        private bool _armed;
         private int _deletes;
 
-        // From now on, deleting the files that exist now fails after the first failAfter; new files delete fine.
-        public void Arm() => _old = inner.Locations.ToHashSet();
+        // From now on, deleting the files that exist now fails after the first failAfter; new files delete fine unless newFilesToo.
+        public void Arm()
+        {
+            _old = inner.Locations.ToHashSet();
+            _armed = true;
+        }
         public bool CanHandle(string location) => inner.CanHandle(location);
         public IAsyncEnumerable<LakeFile> ListAsync(string location, CancellationToken ct = default) => inner.ListAsync(location, ct);
         public ValueTask<int> ReadAsync(LakeFile file, long offset, Memory<byte> buffer, CancellationToken ct = default) => inner.ReadAsync(file, offset, buffer, ct);
@@ -778,6 +819,7 @@ public class DatasetWriteTests(string provider)
 
         public ValueTask DeleteAsync(string location, CancellationToken ct = default)
         {
+            if (_armed && newFilesToo && !_old.Contains(location)) throw new IOException("no delete permission");
             if (_old.Contains(location) && _deletes++ >= failAfter) throw new IOException("storage is down");
             return inner.DeleteAsync(location, ct);
         }
