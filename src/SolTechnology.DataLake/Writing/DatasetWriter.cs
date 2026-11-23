@@ -25,7 +25,7 @@ internal sealed class DatasetWriter<T> where T : class
     private readonly string _location;
     private readonly DatasetSpec _spec;
     private readonly FileFormats _formats;
-    private readonly ParquetOptions _options;
+    private readonly ParquetWriteOptions _options;
     private readonly Func<Stream> _tempStream;
     private readonly string _provider;
     private readonly ClassMap<T> _map;
@@ -36,7 +36,7 @@ internal sealed class DatasetWriter<T> where T : class
     private readonly List<LakeFile> _written = [];
     private int _sequence;
 
-    public DatasetWriter(ILakeStorage storage, string location, DatasetSpec spec, FileFormats formats, ParquetOptions options, Func<Stream> tempStream, string provider)
+    public DatasetWriter(ILakeStorage storage, string location, DatasetSpec spec, FileFormats formats, ParquetWriteOptions options, Func<Stream> tempStream, string provider)
     {
         _storage = storage;
         _location = location.TrimEnd('/');

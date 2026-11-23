@@ -17,7 +17,7 @@ internal sealed record FilesDatasetSettings(
     string Location,
     DatasetSpec Spec,
     FileFormats Formats,
-    ParquetOptions? Writes,
+    ParquetWriteOptions? Writes,
     Func<Stream> TempStream,
     bool MissingIsEmpty)
 {

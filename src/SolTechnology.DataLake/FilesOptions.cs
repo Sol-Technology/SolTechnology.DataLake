@@ -18,10 +18,10 @@ public sealed class FilesOptions
 
     internal FilesOptions() { }
 
-    internal ParquetOptions ParquetSettings { get; } = new();
+    internal ParquetWriteOptions ParquetSettings { get; } = new();
 
     /// <summary>How Parquet files are written. Writes are always Parquet.</summary>
-    public FilesOptions Parquet(Action<ParquetOptions> configure)
+    public FilesOptions Parquet(Action<ParquetWriteOptions> configure)
     {
         ArgumentNullException.ThrowIfNull(configure);
         configure(ParquetSettings);
@@ -48,28 +48,28 @@ public sealed class FilesOptions
 }
 
 /// <summary>How Parquet files are written, set through <see cref="FilesOptions.Parquet"/>.</summary>
-public sealed class ParquetOptions
+public sealed class ParquetWriteOptions
 {
     internal ParquetCompression CompressionValue { get; private set; } = ParquetCompression.Snappy;
     internal int RowGroupSizeValue { get; private set; } = 128 * 1024;
     internal long TargetFileSizeValue { get; private set; } = 512L << 20;
 
     /// <summary>Compression of the column pages. Snappy by default, like Spark and pyarrow.</summary>
-    public ParquetOptions Compression(ParquetCompression compression)
+    public ParquetWriteOptions Compression(ParquetCompression compression)
     {
         CompressionValue = compression;
         return this;
     }
 
     /// <summary>Rows per row group, 131 072 by default. Each partition being written keeps this many rows in memory.</summary>
-    public ParquetOptions RowGroupSize(int rows)
+    public ParquetWriteOptions RowGroupSize(int rows)
     {
         RowGroupSizeValue = rows > 0 ? rows : throw new ArgumentOutOfRangeException(nameof(rows), "Must be positive.");
         return this;
     }
 
     /// <summary>A file is closed and a new one started after the row group that crosses this size, 512 MiB by default.</summary>
-    public ParquetOptions TargetFileSize(long bytes)
+    public ParquetWriteOptions TargetFileSize(long bytes)
     {
         TargetFileSizeValue = bytes > 0 ? bytes : throw new ArgumentOutOfRangeException(nameof(bytes), "Must be positive.");
         return this;

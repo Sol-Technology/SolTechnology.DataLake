@@ -29,7 +29,7 @@ public class DatasetWriteTests(string provider)
 
     private string Location(string name) => provider == "local" ? $"{_temp.Root}/{name}" : $"memory://lake/{name}";
 
-    private LakeContext Lake(Action<LakeModelBuilder>? model = null, Action<ParquetOptions>? options = null) =>
+    private LakeContext Lake(Action<LakeModelBuilder>? model = null, Action<ParquetWriteOptions>? options = null) =>
         LakeContext.Create(o =>
         {
             Action<FilesOptions>? files = options is null ? null : f => f.Parquet(options);
@@ -40,7 +40,7 @@ public class DatasetWriteTests(string provider)
     private IDataset<T> Writable<T>(params Expression<Func<T, object?>>[] partitionBy) where T : class =>
         Lake(m => m.Dataset<T>("data").PartitionBy(partitionBy)).Dataset<T>("data");
 
-    private IDataset<T> Writable<T>(Action<ParquetOptions> options, params Expression<Func<T, object?>>[] partitionBy) where T : class =>
+    private IDataset<T> Writable<T>(Action<ParquetWriteOptions> options, params Expression<Func<T, object?>>[] partitionBy) where T : class =>
         Lake(m => m.Dataset<T>("data").PartitionBy(partitionBy), options).Dataset<T>("data");
 
     private async Task<List<string>> FilesOf(string name = "data")

@@ -27,7 +27,7 @@ services.AddDataLake<IShopLake, ShopLake>((sp, o) => o.UseFiles("s3://shop/", ne
 | `Avro()` | read `.avro` files; from SolTechnology.DataLake.Avro |
 | `Arrow()` | read `.arrow`, `.feather`, `.ipc`, `.arrows` files; from SolTechnology.DataLake.Arrow |
 
-| `ParquetOptions` | Default | |
+| `ParquetWriteOptions` | Default | |
 |---|---|---|
 | `Compression` | `Snappy` | `Snappy`, `Zstd`, `Gzip`, `None` |
 | `RowGroupSize` | 131 072 rows | each partition being written keeps this many rows in memory |
