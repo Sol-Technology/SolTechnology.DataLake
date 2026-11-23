@@ -53,6 +53,7 @@ public sealed class LakeContextOptionsBuilder
         storage ??= LocalStorage.Instance.CanHandle(root) ? LocalStorage.Instance
             : throw new ArgumentException($"'{root}' is not a local path; pass a storage that handles it, e.g. S3Storage or AzureBlobStorage.", nameof(storage));
         if (!storage.CanHandle(root)) throw new ArgumentException($"{storage.GetType().Name} does not handle '{root}'.", nameof(root));
+        if (storage is LocalStorage) root = LocalStorage.RootPath(root);
         var options = FilesOptions.From(configure);
         return Use(() => new FilesProvider("files", "UseFiles", root, storage, options, TempStreams.File));
     }

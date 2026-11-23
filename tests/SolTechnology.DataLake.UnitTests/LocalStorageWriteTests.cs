@@ -119,6 +119,58 @@ public class LocalStorageWriteTests
         rows.Select(r => (r.Id, r.Date)).Should().Equal((1, new DateOnly(2026, 10, 1)), (2, new DateOnly(2026, 10, 1)), (3, new DateOnly(2026, 10, 1)));
     }
 
+    public sealed class Visit
+    {
+        public long Id { get; set; }
+        public string Region { get; set; } = "";
+    }
+
+    // Partition folders are Hive-escaped text, not URI escapes: under a file:// root they stay as written.
+    [Test]
+    public async Task A_file_uri_root_keeps_partition_folders_escaped_and_inside_the_dataset()
+    {
+        var root = new Uri(_lake.PathOf("my lake")).AbsoluteUri;
+        var dataset = LakeContext.Create(o => o.UseFiles(root), m => m.Dataset<Visit>("visits").PartitionBy(v => v.Region)).Dataset<Visit>("visits");
+        Visit[] rows = [new() { Id = 1, Region = "a/b" }, new() { Id = 2, Region = "../../escaped" }, new() { Id = 3, Region = "a%41" }];
+
+        await dataset.AppendAsync(rows);
+
+        Directory.EnumerateFiles(_lake.Root, "*", SearchOption.AllDirectories)
+            .Select(f => Path.GetRelativePath(_lake.Root, f).Replace('\\', '/'))
+            .Select(f => f[..f.LastIndexOf('/')])
+            .Should().BeEquivalentTo("my lake/visits/Region=a%2Fb", "my lake/visits/Region=..%2F..%2Fescaped", "my lake/visits/Region=a%2541");
+        (await dataset.ReadAsync().OrderBy(v => v.Id).ToListAsync()).Should().BeEquivalentTo(rows, o => o.WithStrictOrdering());
+        (await Dataset.Open<Visit>($"{root}/visits").ReadAsync().OrderBy(v => v.Id).ToListAsync()).Should().BeEquivalentTo(rows, o => o.WithStrictOrdering());
+
+        await dataset.ReplacePartitionsAsync([new Visit { Id = 4, Region = "a/b" }]);
+        await dataset.DeleteAsync(v => v.Region == "../../escaped");
+        (await dataset.ReadAsync().OrderBy(v => v.Id).Select(v => v.Id).ToListAsync()).Should().Equal(3, 4);
+    }
+
+    [TestCase("Region=a%2Fb")]
+    [TestCase("Region=..%2F..%2Fescaped")]
+    [TestCase("%2E%2E")]
+    public async Task A_file_uri_whose_escapes_would_change_its_folders_is_an_error(string segment)
+    {
+        var location = $"{new Uri(_lake.Root).AbsoluteUri}/visits/{segment}/part-0.bin";
+
+        var write = () => _storage.WriteAsync(location, new MemoryStream([1])).AsTask();
+
+        (await write.Should().ThrowAsync<ArgumentException>()).WithMessage("*escape*");
+        Directory.EnumerateFiles(_lake.Root, "*", SearchOption.AllDirectories).Should().BeEmpty();
+    }
+
+    [Test]
+    public async Task Listing_skips_files_still_being_written()
+    {
+        await _storage.WriteAsync(_lake.PathOf("date=2026-10-01/part-0.bin"), new MemoryStream([1]));
+        File.WriteAllBytes(_lake.PathOf("date=2026-10-01/.part-1.bin.0123456789abcdef0123456789abcdef.tmp"), [1, 2]);
+
+        var files = await _storage.ListAsync(_lake.Root).Select(f => f.RelativePath).ToListAsync();
+
+        files.Should().Equal("date=2026-10-01/part-0.bin");
+    }
+
     [Test]
     public async Task A_read_only_storage_says_so()
     {

@@ -4,7 +4,8 @@ using System.Runtime.InteropServices;
 namespace SolTechnology.DataLake.Storage;
 
 /// <summary>
-/// Files on a local or mounted disk. Locations are paths or <c>file://</c> URIs. Writes go to a hidden temporary file
+/// Files on a local or mounted disk. Locations are paths or <c>file://</c> URIs; an escape in a URI that would turn into a
+/// separator or a dot segment (<c>%2F</c>, <c>%2E%2E</c>) is an error. Writes go to a hidden temporary file
 /// next to the target and are renamed into place, so readers never see a half-written file.
 /// </summary>
 public sealed class LocalStorage : ILakeStorage
@@ -30,7 +31,17 @@ public sealed class LocalStorage : ILakeStorage
         foreach (var path in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            yield return new LakeFile(path, new FileInfo(path).Length, Path.GetRelativePath(root, path).Replace('\\', '/'));
+            if (IsTemporary(Path.GetFileName(path))) continue;
+            long length;
+            try
+            {
+                length = new FileInfo(path).Length;
+            }
+            catch (Exception e) when (e is FileNotFoundException or DirectoryNotFoundException)
+            {
+                continue; // deleted or renamed since it was enumerated
+            }
+            yield return new LakeFile(path, length, Path.GetRelativePath(root, path).Replace('\\', '/'));
         }
         await Task.CompletedTask.ConfigureAwait(false);
     }
@@ -116,6 +127,35 @@ public sealed class LocalStorage : ILakeStorage
     [DllImport("libc", SetLastError = true)]
     private static extern int link(string existing, string created);
 
-    internal static string ToPath(string location) =>
-        location.StartsWith("file://", StringComparison.OrdinalIgnoreCase) ? new Uri(location).LocalPath : Path.GetFullPath(location);
+    // The temporary file of a write in progress, named in WriteAsync.
+    private static bool IsTemporary(string name) => name.StartsWith('.') && name.EndsWith(".tmp", StringComparison.Ordinal);
+
+    /// <summary>
+    /// The root of a dataset or a context as a path, so that partition folders appended to it (Hive-escaped, e.g.
+    /// <c>Region=a%2Fb</c>) are taken as they are and not unescaped as part of a URI.
+    /// </summary>
+    internal static string RootPath(string location) =>
+        location.StartsWith("file://", StringComparison.OrdinalIgnoreCase) ? ToPath(location) : location;
+
+    /// <summary>
+    /// A path for <paramref name="location"/>; a <c>file://</c> URI is unescaped. An escape that would turn into a separator or
+    /// a dot segment is an error: it would address another folder than the one the URI names.
+    /// </summary>
+    internal static string ToPath(string location)
+    {
+        if (!location.StartsWith("file://", StringComparison.OrdinalIgnoreCase)) return Path.GetFullPath(location);
+        // System.Uri unescapes %2F and removes dot segments while parsing, so the segments are checked as written.
+        var rest = location["file://".Length..];
+        var start = rest.IndexOf('/');
+        foreach (var segment in (start < 0 ? "" : rest[start..]).Split('/'))
+        {
+            if (!segment.Contains('%', StringComparison.Ordinal)) continue;
+            var unescaped = Uri.UnescapeDataString(segment);
+            if (unescaped.AsSpan().IndexOfAny('/', '\\') >= 0 || unescaped is "." or "..")
+                throw new ArgumentException(
+                    $"'{location}': the escape in '{segment}' would change which folder the file is in. Pass a file:// URI without escaped separators, or a path.",
+                    nameof(location));
+        }
+        return Path.GetFullPath(new Uri(location).LocalPath);
+    }
 }

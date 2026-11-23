@@ -24,7 +24,8 @@ public static class Dataset
             : throw new NotSupportedException($"No storage for '{location}'. Pass one in DataLakeOptions.Storage, e.g. S3Storage from SolTechnology.DataLake.Aws.");
         var formats = FilesOptions.From(options.Files).Formats(method => $"pass new DataLakeOptions {{ Files = f => f.{method} }} to Dataset.Open");
         var spec = new DatasetSpec(location, "Dataset.Open", null, options.ColumnNaming);
-        return new FilesDataset<T>(new FilesDatasetSettings(null, storage, location, spec, formats, null, TempStreams.File, MissingIsEmpty: false), null);
+        var root = storage is LocalStorage ? LocalStorage.RootPath(location) : location;
+        return new FilesDataset<T>(new FilesDatasetSettings(null, storage, root, spec, formats, null, TempStreams.File, MissingIsEmpty: false), null);
     }
 }
 
