@@ -11,7 +11,9 @@ namespace SolTechnology.DataLake.Cli;
 internal static class StorageResolver
 {
     private static readonly string[] AzureSchemes = ["abfss", "abfs", "wasbs", "wasb", "az"];
-    private static readonly string[] AzureHosts = [".blob.core.windows.net", ".dfs.core.windows.net", ".fabric.microsoft.com"];
+    // Global Azure only, including DNS zone endpoints (account.z12.blob.storage.azure.net).
+    private static readonly string[] AzureHosts =
+        [".blob.core.windows.net", ".dfs.core.windows.net", ".blob.storage.azure.net", ".dfs.storage.azure.net", ".fabric.microsoft.com"];
 
     public static ILakeStorage For(string location, string? s3Endpoint, string? azureConnectionString)
     {

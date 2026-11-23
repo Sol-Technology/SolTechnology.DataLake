@@ -129,6 +129,12 @@ public class CliTests
         error.Should().Contain("not an Azure Storage host");
     }
 
+    [TestCase("abfss://lake@shop.dfs.core.windows.net/orders/")]
+    [TestCase("abfss://lake@shop.z12.dfs.storage.azure.net/orders/")]
+    [TestCase("https://shop.z12.blob.storage.azure.net/lake/orders/")]
+    public void Azure_hosts_get_Azure_storage(string location) =>
+        Program.StorageFor(location, null, null).Should().BeOfType<SolTechnology.DataLake.Azure.AzureBlobStorage>().Which.CanHandle(location).Should().BeTrue();
+
     [Test]
     public async Task Missing_location_is_exit_code_2()
     {

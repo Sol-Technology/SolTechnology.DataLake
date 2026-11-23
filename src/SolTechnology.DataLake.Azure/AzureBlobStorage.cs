@@ -12,7 +12,7 @@ namespace SolTechnology.DataLake.Azure;
 /// </summary>
 /// <remarks>
 /// Locations: <c>abfss://container@account.dfs.core.windows.net/path</c>, <c>wasbs://container@account.blob.core.windows.net/path</c>,
-/// <c>https://account.blob.core.windows.net/container/path</c>, OneLake <c>abfss://workspace@onelake.dfs.fabric.microsoft.com/item/Files/path</c>,
+/// <c>https://account.blob.core.windows.net/container/path</c> (also Azure DNS zone endpoints, <c>account.z12.blob.storage.azure.net</c>), OneLake <c>abfss://workspace@onelake.dfs.fabric.microsoft.com/item/Files/path</c>,
 /// and <c>az://container/path</c> for the account the client points to. The <see cref="BlobServiceClient"/> must point to
 /// the same account: <c>https://account.blob.core.windows.net</c>, or <c>https://onelake.blob.fabric.microsoft.com</c> for OneLake.
 /// </remarks>
@@ -25,7 +25,9 @@ namespace SolTechnology.DataLake.Azure;
 public sealed class AzureBlobStorage(BlobServiceClient service) : ILakeStorage
 {
     private static readonly string[] Schemes = ["abfss", "abfs", "wasbs", "wasb", "az"];
-    private static readonly string[] HttpsHosts = [".blob.core.windows.net", ".dfs.core.windows.net", ".fabric.microsoft.com"];
+    // Azure DNS zone endpoints (account.z12.blob.storage.azure.net) are global Azure too.
+    private static readonly string[] HttpsHosts =
+        [".blob.core.windows.net", ".dfs.core.windows.net", ".blob.storage.azure.net", ".dfs.storage.azure.net", ".fabric.microsoft.com"];
 
     /// <inheritdoc />
     public bool CanHandle(string location)

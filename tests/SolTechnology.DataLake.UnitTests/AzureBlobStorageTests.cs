@@ -13,6 +13,8 @@ public class AzureBlobStorageTests
     [TestCase("https://shop.blob.core.windows.net/lake/orders/", true)]
     [TestCase("abfss://Sales@onelake.dfs.fabric.microsoft.com/Orders.Lakehouse/Files/orders/", true)]
     [TestCase("az://lake/orders/", true)]
+    [TestCase("https://shop.z12.blob.storage.azure.net/lake/orders/", true)]
+    [TestCase("abfss://lake@shop.z12.dfs.storage.azure.net/orders/", true)]
     [TestCase("s3://lake/orders/", false)]
     [TestCase("https://example.com/lake/orders/", false)]
     [TestCase("/data/orders", false)]

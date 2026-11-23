@@ -320,7 +320,7 @@ lines[].sku   string                      0  sku-000              sku-499
 
 `cat` prints every row as JSON lines, or CSV with a header (nested values as JSON). `stats` sums the Parquet footers without reading data pages; Avro and Arrow files are counted row by row. A column whose range is missing in some row group shows `?`.
 
-Credentials come from the environment, like the cloud CLIs: the default AWS chain for `s3://` (`--s3-endpoint` for MinIO), `--azure-connection-string`, `AZURE_STORAGE_CONNECTION_STRING` or `DefaultAzureCredential` for Azure. `DefaultAzureCredential` is only sent to Azure's global storage hosts (`*.blob.core.windows.net`, `*.dfs.core.windows.net`, OneLake), because your token opens every account you can reach; for anything else (Azurite, a custom endpoint, Azure China or US Government) pass a connection string. Exit code 2 on errors.
+Credentials come from the environment, like the cloud CLIs: the default AWS chain for `s3://` (`--s3-endpoint` for MinIO), `--azure-connection-string`, `AZURE_STORAGE_CONNECTION_STRING` or `DefaultAzureCredential` for Azure. `DefaultAzureCredential` is only sent to Azure's global storage hosts (`*.blob.core.windows.net`, `*.dfs.core.windows.net`, DNS zone endpoints `*.blob.storage.azure.net`, OneLake), because your token opens every account you can reach; for anything else (Azurite, a custom endpoint, Azure China or US Government) pass a connection string. Exit code 2 on errors.
 
 ## Limits of 0.2
 

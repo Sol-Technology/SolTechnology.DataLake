@@ -106,7 +106,7 @@ services.AddDataLake<ShopLake>(o => o.UseParquet("abfss://lake@shop.dfs.core.win
 |---|---|
 | `abfss://container@account.dfs.core.windows.net/path` | ADLS Gen2 (also `abfs://`) |
 | `wasbs://container@account.blob.core.windows.net/path` | Blob Storage (also `wasb://`) |
-| `https://account.blob.core.windows.net/container/path` | either |
+| `https://account.blob.core.windows.net/container/path` | either; also Azure DNS zone endpoints, `https://account.z12.blob.storage.azure.net/container/path` |
 | `abfss://workspace@onelake.dfs.fabric.microsoft.com/item.Lakehouse/Files/path` | OneLake; the client points to `https://onelake.blob.fabric.microsoft.com` |
 | `az://container/path` | the account the client points to, e.g. Azurite |
 
