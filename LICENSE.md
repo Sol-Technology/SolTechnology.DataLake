@@ -1,24 +1,31 @@
-# SolTechnology.DataLake License
+# MIT License
 
 Copyright (c) 2026 Adrian Strugała (SolTechnology) - https://soltechnology.dev
 
-SolTechnology.DataLake is **source-available**. You may use it free of charge for noncommercial purposes and
-inside small companies; other companies need a commercial licence. Pick the path that applies to you:
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-| You are… | Licence | Cost |
-|---|---|---|
-| An individual, a student, a non-profit, a public institution, or using it for research, hobby or evaluation | [PolyForm Noncommercial 1.0.0](licenses/PolyForm-Noncommercial-1.0.0.md) | Free |
-| A company with **fewer than 100 people** (employees + contractors) **and** under **1,000,000 USD** revenue in the prior tax year | [PolyForm Small Business 1.0.0](licenses/PolyForm-Small-Business-1.0.0.md) | Free |
-| Any other organisation using it commercially | SolTechnology Commercial Licence for DataLake | Not published yet. Write to contact@soltechnology.dev |
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
-The two free licences are offered in parallel: you may rely on whichever one fits your situation. If
-neither does, you need a commercial licence to use SolTechnology.DataLake in production.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 
-The commercial licence for SolTechnology.DataLake is separate from the AvroConvert commercial licence. A
-licence for AvroConvert does not cover SolTechnology.DataLake. SolTechnology.DataLake includes AvroConvert as a
-component: AvroConvert used through SolTechnology.DataLake is covered by the SolTechnology.DataLake licence.
+## Notes
 
-Required Notice: Copyright Adrian Strugała (https://soltechnology.dev)
+- SolTechnology.DataLake.Avro is MIT, but it uses AvroConvert, which has its own licence: free for noncommercial
+  use and for small companies, a commercial licence for others. See
+  https://github.com/AdrianStrugala/AvroConvert/blob/master/LICENSE.md.
+- A future SolTechnology.DataLake.Iceberg package will be commercial. It will say so in its own licence.
 
 ## Trademarks
 

@@ -1,7 +1,7 @@
 <Project>
   <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
 
-  <!-- Shared by every SolTechnology.DataLake package: one version, one licence. -->
+  <!-- Shared by every SolTechnology.DataLake package in this repository: one version, MIT. A package with other terms sets its own licence. -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
@@ -9,7 +9,7 @@
     <Authors>Adrian Strugala</Authors>
     <Company>SolTechnology</Company>
     <Product>SolTechnology.DataLake</Product>
-    <PackageLicenseFile>LICENSE.md</PackageLicenseFile>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <RepositoryUrl>https://github.com/Sol-Technology/SolTechnology.DataLake</RepositoryUrl>
@@ -19,13 +19,11 @@
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
-    <LicenceSummary>Free for noncommercial use and for companies under 100 people / 1M USD revenue (PolyForm Noncommercial / Small Business); commercial licence for other organisations - see LICENSE.md.</LicenceSummary>
+    <LicenceSummary>MIT licence.</LicenceSummary>
   </PropertyGroup>
 
   <ItemGroup>
     <None Include="$(MSBuildThisFileDirectory)../README.md" Pack="true" Visible="false" PackagePath="\" />
     <None Include="$(MSBuildThisFileDirectory)../LICENSE.md" Pack="true" Visible="false" PackagePath="\" />
-    <None Include="$(MSBuildThisFileDirectory)../licenses/PolyForm-Noncommercial-1.0.0.md" Pack="true" Visible="false" PackagePath="licenses\" />
-    <None Include="$(MSBuildThisFileDirectory)../licenses/PolyForm-Small-Business-1.0.0.md" Pack="true" Visible="false" PackagePath="licenses\" />
   </ItemGroup>
 </Project>

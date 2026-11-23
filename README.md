@@ -4,7 +4,7 @@
 
 <p>
  <a href="https://github.com/Sol-Technology/SolTechnology.DataLake/actions/workflows/build.yml"><img src="https://img.shields.io/github/actions/workflow/status/Sol-Technology/SolTechnology.DataLake/build.yml?label=Build&logo=github"></a>
- <a href="./LICENSE.md"><img src="https://img.shields.io/badge/licence-PolyForm%20NC%20%7C%20Small%20Business%20%7C%20Commercial-2F7D7A.svg"></a>
+ <a href="./LICENSE.md"><img src="https://img.shields.io/badge/licence-MIT-2F7D7A.svg"></a>
 </p>
 
 > **Status: 0.2 preview, not on NuGet yet.** It reads and writes Parquet datasets on local disk, S3 and Azure, and maps Apache Arrow (ADBC results, IPC files) to your classes. Iceberg tables come in 0.3. The API can change until 1.0.
@@ -94,10 +94,10 @@ Cloud SDKs live in their own packages, so you only get the one you use.
 
 ## Design partners
 
-Is your .NET team on Databricks, Snowflake, Fabric, Trino or plain S3, and you would use this? Open an issue or write to contact@soltechnology.dev. Teams that use the previews and give feedback get a free commercial licence until 1.0 and for 12 months after it.
+Is your .NET team on Databricks, Snowflake, Fabric, Trino or plain S3, and you would use this? Open an issue or write to contact@soltechnology.dev. Teams that use the previews and give feedback get a free licence for the commercial Iceberg package until 1.0 and for 12 months after it.
 
 ## Licence
 
-Source-available. Free for noncommercial use and for companies under 100 people and 1M USD revenue (PolyForm Noncommercial / Small Business). Other companies need a commercial licence, separate from the AvroConvert one. Details in [LICENSE.md](./LICENSE.md).
+MIT, see [LICENSE.md](./LICENSE.md). SolTechnology.DataLake.Avro is MIT too, but it uses AvroConvert, which has [its own licence](https://github.com/AdrianStrugala/AvroConvert/blob/master/LICENSE.md): free for noncommercial use and small companies, a commercial licence for others. A future SolTechnology.DataLake.Iceberg package will be commercial and will say so in its own licence.
 
 Apache Iceberg, Apache Parquet, Apache Arrow and Apache Avro are trademarks of The Apache Software Foundation. DataLake is an independent implementation and is not endorsed by the ASF.
