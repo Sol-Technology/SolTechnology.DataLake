@@ -6,6 +6,7 @@
 		<PackageId>SolTechnology.DataLake.Arrow</PackageId>
 		<Description>Apache Arrow for SolTechnology.DataLake: record batches, ADBC results (Databricks, Snowflake, BigQuery, Flight SQL) and Arrow IPC files into your classes and back with ArrowConvert, and Arrow IPC files (.arrow, .feather, .ipc, .arrows) in folder datasets with f.Arrow() in UseFiles. $(LicenceSummary)</Description>
 		<PackageTags>arrow apache-arrow adbc flight-sql feather parquet lakehouse datalake</PackageTags>
+		<UsesCoreInternals>true</UsesCoreInternals>
 	</PropertyGroup>
 
 	<ItemGroup>

@@ -26,4 +26,18 @@
     <None Include="$(MSBuildThisFileDirectory)../README.md" Pack="true" Visible="false" PackagePath="\" />
     <None Include="$(MSBuildThisFileDirectory)../LICENSE.md" Pack="true" Visible="false" PackagePath="\" />
   </ItemGroup>
+
+  <!--
+    A package that uses internals of SolTechnology.DataLake (InternalsVisibleTo) works only with the core it was built
+    with, so it depends on exactly that version: set UsesCoreInternals to true in its project.
+  -->
+  <Target Name="DependOnExactCoreVersion" AfterTargets="_GetProjectReferenceVersions" Condition="'$(UsesCoreInternals)' == 'true'">
+    <ItemGroup>
+      <_ExactCoreReference Include="@(_ProjectReferencesWithVersions)" Condition="'%(Filename)' == 'SolTechnology.DataLake'">
+        <ProjectVersion>[%(ProjectVersion)]</ProjectVersion>
+      </_ExactCoreReference>
+      <_ProjectReferencesWithVersions Remove="@(_ExactCoreReference)" />
+      <_ProjectReferencesWithVersions Include="@(_ExactCoreReference)" />
+    </ItemGroup>
+  </Target>
 </Project>

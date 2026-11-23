@@ -6,6 +6,7 @@
 		<PackageId>SolTechnology.DataLake.Avro</PackageId>
 		<Description>Avro container files (.avro) in SolTechnology.DataLake folder datasets, with f.Avro() in UseFiles: records into your classes with the same mapping as Parquet. $(LicenceSummary) It uses AvroConvert, which has its own licence (free for noncommercial use and small companies, a commercial licence for others): https://github.com/AdrianStrugala/AvroConvert/blob/master/LICENSE.md</Description>
 		<PackageTags>avro apache-avro parquet lakehouse datalake data-lake dataset partitions</PackageTags>
+		<UsesCoreInternals>true</UsesCoreInternals>
 	</PropertyGroup>
 
 	<ItemGroup>

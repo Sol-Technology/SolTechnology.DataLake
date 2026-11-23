@@ -110,7 +110,7 @@ public static class ArrowConvert
             var head = new byte[8];
             var read = await stream.ReadAtLeastAsync(head, head.Length, throwOnEndOfStream: false, ct).ConfigureAwait(false);
             if (read >= 6 && head.AsSpan(0, 6).SequenceEqual(FileMagic)) return new ArrowStreamReader(stream, leaveOpen: true);
-            return new ArrowStreamReader(new PrefixedStream(head.AsMemory(0, read), stream), leaveOpen: false);
+            return new ArrowStreamReader(new PrefixedStream(head.AsMemory(0, read), stream), leaveOpen: true);
         }
 
         var start = stream.Position;
@@ -157,11 +157,6 @@ public static class ArrowConvert
         public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
         public override void SetLength(long value) => throw new NotSupportedException();
         public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing) rest.Dispose();
-            base.Dispose(disposing);
-        }
     }
 }
 
