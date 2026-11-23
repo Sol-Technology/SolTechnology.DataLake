@@ -4,13 +4,11 @@
 		<RootNamespace>SolTechnology.DataLake</RootNamespace>
 		<AssemblyName>SolTechnology.DataLake</AssemblyName>
 		<PackageId>SolTechnology.DataLake</PackageId>
-		<Description>Read and write Parquet datasets (and soon Apache Iceberg tables) from .NET with your own classes. No Spark, no JVM. Hive partitions, LINQ filters that skip files and row groups, nested columns, Apache Arrow and ADBC results into classes, timestamps through SolTechnology.DateTimeZone. $(LicenceSummary)</Description>
-		<PackageTags>iceberg apache-iceberg parquet avro arrow adbc lakehouse datalake data-lake dataset partitions</PackageTags>
+		<Description>Read and write Parquet datasets from .NET with your own classes, like EF Core for a data lake. No Spark, no JVM. A LakeContext with datasets as folders of files, hive partitions, LINQ filters that skip files and row groups, nested columns, timestamps through SolTechnology.DateTimeZone, local disk and memory. S3, Azure, Arrow and Avro come as separate packages. $(LicenceSummary)</Description>
+		<PackageTags>parquet lakehouse datalake data-lake dataset partitions iceberg apache-iceberg</PackageTags>
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Apache.Arrow" />
-		<PackageReference Include="AvroConvert" />
 		<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
 		<PackageReference Include="Parquet.Net" />
 		<PackageReference Include="SolTechnology.DateTimeZone" />
@@ -21,6 +19,8 @@
 		<InternalsVisibleTo Include="SolTechnology.DataLake.IntegrationTests" />
 		<InternalsVisibleTo Include="SolTechnology.DataLake.CompatibilityTests" />
 		<InternalsVisibleTo Include="datalake" />
+		<InternalsVisibleTo Include="SolTechnology.DataLake.Arrow" />
+		<InternalsVisibleTo Include="SolTechnology.DataLake.Avro" />
 	</ItemGroup>
 
 </Project>

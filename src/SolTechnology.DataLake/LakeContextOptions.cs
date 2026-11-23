@@ -43,27 +43,28 @@ public sealed class LakeContextOptionsBuilder
     internal JsonNamingPolicy? Naming { get; private set; }
 
     /// <summary>
-    /// Parquet files in folders under <paramref name="root"/>, one folder per dataset (<c>root/orders/</c>), partitioned
-    /// hive-style. <paramref name="storage"/> is needed for anything but a local path: <c>S3Storage</c>, <c>AzureBlobStorage</c>.
+    /// A folder of files per dataset under <paramref name="root"/> (<c>root/orders/</c>), partitioned hive-style, without
+    /// transactions. Writes are Parquet; reads take Parquet and the formats added in <paramref name="configure"/>, e.g.
+    /// <c>f => f.Avro()</c>. <paramref name="storage"/> is needed for anything but a local path: <c>S3Storage</c>, <c>AzureBlobStorage</c>.
     /// </summary>
-    public LakeContextOptionsBuilder UseParquet(string root, ILakeStorage? storage = null, Action<ParquetProviderOptions>? configure = null)
+    public LakeContextOptionsBuilder UseFiles(string root, ILakeStorage? storage = null, Action<FilesOptions>? configure = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(root);
         storage ??= LocalStorage.Instance.CanHandle(root) ? LocalStorage.Instance
             : throw new ArgumentException($"'{root}' is not a local path; pass a storage that handles it, e.g. S3Storage or AzureBlobStorage.", nameof(storage));
         if (!storage.CanHandle(root)) throw new ArgumentException($"{storage.GetType().Name} does not handle '{root}'.", nameof(root));
-        var options = Configure(configure);
-        return Use(() => new ParquetProvider("parquet", root, storage, options, TempStreams.File));
+        var options = FilesOptions.From(configure);
+        return Use(() => new FilesProvider("files", "UseFiles", root, storage, options, TempStreams.File));
     }
 
     /// <summary>
-    /// The Parquet provider on memory instead of storage: the same writer, reader and rules, no disk. For tests. Pass one
+    /// <see cref="UseFiles"/> on memory instead of storage: the same writer, reader and rules, no disk. For tests. Pass one
     /// <paramref name="storage"/> to several contexts to share the data, or to look at the files written.
     /// </summary>
-    public LakeContextOptionsBuilder UseInMemory(MemoryStorage? storage = null, Action<ParquetProviderOptions>? configure = null)
+    public LakeContextOptionsBuilder UseInMemory(MemoryStorage? storage = null, Action<FilesOptions>? configure = null)
     {
-        var options = Configure(configure);
-        return Use(() => new ParquetProvider("in-memory", MemoryStorage.Root, storage ?? new MemoryStorage(), options, TempStreams.Memory));
+        var options = FilesOptions.From(configure);
+        return Use(() => new FilesProvider("in-memory", "UseInMemory", MemoryStorage.Root, storage ?? new MemoryStorage(), options, TempStreams.Memory));
     }
 
     /// <summary>
@@ -77,7 +78,7 @@ public sealed class LakeContextOptionsBuilder
     }
 
     internal LakeProvider BuildProvider() =>
-        (_provider ?? throw new InvalidOperationException("No provider configured: call UseParquet(...) or UseInMemory()."))();
+        (_provider ?? throw new InvalidOperationException("No provider configured: call UseFiles(...) or UseInMemory()."))();
 
     private LakeContextOptionsBuilder Use(Func<LakeProvider> provider)
     {
@@ -85,56 +86,4 @@ public sealed class LakeContextOptionsBuilder
         _provider = provider;
         return this;
     }
-
-    private static ParquetProviderOptions Configure(Action<ParquetProviderOptions>? configure)
-    {
-        var options = new ParquetProviderOptions();
-        configure?.Invoke(options);
-        return options;
-    }
-}
-
-/// <summary>Settings of the Parquet provider: how files are written.</summary>
-public sealed class ParquetProviderOptions
-{
-    internal ParquetCompression CompressionValue { get; private set; } = ParquetCompression.Snappy;
-    internal int RowGroupSizeValue { get; private set; } = 128 * 1024;
-    internal long TargetFileSizeValue { get; private set; } = 512L << 20;
-
-    /// <summary>Compression of the column pages. Snappy by default, like Spark and pyarrow.</summary>
-    public ParquetProviderOptions Compression(ParquetCompression compression)
-    {
-        CompressionValue = compression;
-        return this;
-    }
-
-    /// <summary>Rows per row group, 131 072 by default. Each partition being written keeps this many rows in memory.</summary>
-    public ParquetProviderOptions RowGroupSize(int rows)
-    {
-        RowGroupSizeValue = rows > 0 ? rows : throw new ArgumentOutOfRangeException(nameof(rows), "Must be positive.");
-        return this;
-    }
-
-    /// <summary>A file is closed and a new one started after the row group that crosses this size, 512 MiB by default.</summary>
-    public ParquetProviderOptions TargetFileSize(long bytes)
-    {
-        TargetFileSizeValue = bytes > 0 ? bytes : throw new ArgumentOutOfRangeException(nameof(bytes), "Must be positive.");
-        return this;
-    }
-}
-
-/// <summary>Compression of Parquet column pages.</summary>
-public enum ParquetCompression
-{
-    /// <summary>Fast, moderate ratio. The default of Spark and pyarrow.</summary>
-    Snappy,
-
-    /// <summary>Better ratio at similar speed; read by every current engine.</summary>
-    Zstd,
-
-    /// <summary>For old readers that know nothing newer.</summary>
-    Gzip,
-
-    /// <summary>No compression.</summary>
-    None,
 }

@@ -58,7 +58,7 @@ internal sealed class ParquetFileWriter<T> : IAsyncDisposable where T : class
 
     public static async Task<ParquetFileWriter<T>> CreateAsync(Stream output, WriteLayout<T> layout, ParquetCompression compression, CancellationToken ct)
     {
-        var options = new ParquetOptions { CompressionMethod = Method(compression) };
+        var options = new Parquet.ParquetOptions { CompressionMethod = Method(compression) };
         var writer = await ParquetWriter.CreateAsync(layout.Schema, output, options, append: false, ct).ConfigureAwait(false);
         writer.CustomMetadata = new Dictionary<string, string> { ["writer"] = "SolTechnology.DataLake" };
         return new ParquetFileWriter<T>(output, layout, writer);

@@ -245,10 +245,31 @@ public class ArrowConvertTests
         }
         var metrics = new ScanMetrics();
 
-        var rows = await Dataset.Open<Sale>(lake.Root).Where(s => s.Country == "PL" && s.Amount > 4).ReadAsync(metrics).ToListAsync();
+        var rows = await Dataset.Open<Sale>(lake.Root, new DataLakeOptions { Files = f => f.Arrow() }).Where(s => s.Country == "PL" && s.Amount > 4)
+            .ReadAsync(metrics).ToListAsync();
 
         rows.Select(r => (r.Id, r.Country)).Should().Equal((3, "PL"), (4, "PL"));
         metrics.FilesSkippedByPartition.Should().Be(1);
+    }
+
+    [TestCase("part-0.arrow")]
+    [TestCase("part-0.feather")]
+    [TestCase("part-0.ipc")]
+    [TestCase("part-0.arrows")]
+    public async Task Arrow_files_are_read_in_a_context_with_f_Arrow_and_fail_without(string name)
+    {
+        using var lake = new TempDataset();
+        Directory.CreateDirectory(lake.PathOf("sales/country=PL"));
+        await using (var file = File.Create(lake.PathOf($"sales/country=PL/{name}")))
+            await ArrowConvert.WriteIpcAsync(file, [new IdAmount { Id = 1, Amount = 2m }], name.EndsWith(".arrows") ? ArrowIpcFormat.Stream : ArrowIpcFormat.File);
+
+        var with = LakeContext.Create(o => o.UseFiles(lake.Root, configure: f => f.Arrow()));
+        var without = LakeContext.Create(o => o.UseFiles(lake.Root));
+
+        (await with.Dataset<Sale>("sales").ReadAsync().SingleAsync()).Should().BeEquivalentTo(new Sale { Id = 1, Country = "PL", Amount = 2m });
+        var read = () => without.Dataset<Sale>("sales").ReadAsync().ToListAsync().AsTask();
+        (await read.Should().ThrowAsync<NotSupportedException>())
+            .WithMessage($"*{name} is an Arrow IPC file. Add the SolTechnology.DataLake.Arrow package and call f.Arrow() in UseFiles.");
     }
 
     public sealed class IdAmount

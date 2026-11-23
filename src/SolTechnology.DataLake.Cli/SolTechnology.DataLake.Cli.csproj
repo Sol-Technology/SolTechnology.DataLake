@@ -7,8 +7,8 @@
 		<AssemblyName>datalake</AssemblyName>
 		<RootNamespace>SolTechnology.DataLake.Cli</RootNamespace>
 		<PackageId>SolTechnology.DataLake.Cli</PackageId>
-		<Description>SolTechnology.DataLake on the command line: list a dataset's files, print its schema and statistics, print rows as JSON or CSV. Local disk, S3 and Azure (ADLS Gen2, OneLake). $(LicenceSummary)</Description>
-		<PackageTags>iceberg apache-iceberg parquet avro lakehouse datalake cli dotnet-tool s3 azure adls onelake</PackageTags>
+		<Description>SolTechnology.DataLake on the command line: list a dataset's files, print its schema and statistics, print rows as JSON or CSV. Parquet, Avro and Arrow IPC files on local disk, S3 and Azure (ADLS Gen2, OneLake). $(LicenceSummary)</Description>
+		<PackageTags>iceberg apache-iceberg parquet avro arrow lakehouse datalake cli dotnet-tool s3 azure adls onelake</PackageTags>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -18,6 +18,8 @@
 
 	<ItemGroup>
 		<ProjectReference Include="..\SolTechnology.DataLake\SolTechnology.DataLake.csproj" />
+		<ProjectReference Include="..\SolTechnology.DataLake.Arrow\SolTechnology.DataLake.Arrow.csproj" />
+		<ProjectReference Include="..\SolTechnology.DataLake.Avro\SolTechnology.DataLake.Avro.csproj" />
 		<ProjectReference Include="..\SolTechnology.DataLake.Aws\SolTechnology.DataLake.Aws.csproj" />
 		<ProjectReference Include="..\SolTechnology.DataLake.Azure\SolTechnology.DataLake.Azure.csproj" />
 	</ItemGroup>

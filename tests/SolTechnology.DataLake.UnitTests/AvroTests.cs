@@ -45,7 +45,9 @@ public class AvroTests
         public string Region { get; set; } = "";
     }
 
-    private IDatasetQuery<Order> Open() => Dataset.Open<Order>(_lake.Root, new DataLakeOptions { ColumnNaming = JsonNamingPolicy.SnakeCaseLower });
+    private static readonly DataLakeOptions WithAvro = new() { Files = f => f.Avro() };
+
+    private IDatasetQuery<Order> Open() => Dataset.Open<Order>(_lake.Root, new DataLakeOptions { ColumnNaming = JsonNamingPolicy.SnakeCaseLower, Files = f => f.Avro() });
 
     [Test]
     public async Task Reads_records_like_Parquet_rows()
@@ -105,11 +107,38 @@ public class AvroTests
     {
         Copy("orders.avro");
 
-        var localIntoOffset = () => Dataset.Open<Instant>(_lake.Root).ReadAsync().ToListAsync().AsTask();
-        var missing = () => Dataset.Open<MissingColumn>(_lake.Root).ReadAsync().ToListAsync().AsTask();
+        var localIntoOffset = () => Dataset.Open<Instant>(_lake.Root, WithAvro).ReadAsync().ToListAsync().AsTask();
+        var missing = () => Dataset.Open<MissingColumn>(_lake.Root, WithAvro).ReadAsync().ToListAsync().AsTask();
 
         (await localIntoOffset.Should().ThrowAsync<NotSupportedException>()).WithMessage("*'local_at' is a timestamp without a time zone*UnzonedDateTime*");
         (await missing.Should().ThrowAsync<InvalidDataException>()).WithMessage("*orders.avro has no column 'Version'*");
+    }
+
+    [Test]
+    public async Task A_context_reads_Avro_with_f_Avro()
+    {
+        Copy("orders/region=eu/orders.avro");
+        var lake = LakeContext.Create(o => o.UseFiles(_lake.Root, configure: f => f.Avro()).ColumnNaming(JsonNamingPolicy.SnakeCaseLower));
+
+        var rows = await lake.Dataset<Order>("orders").ReadAsync().ToListAsync();
+
+        rows.Select(r => (r.Id, r.Region)).Should().Equal((1, "eu"), (2, "eu"));
+        (await lake.Dataset<Order>("orders").CountAsync()).Should().Be(2);
+    }
+
+    [Test]
+    public async Task Without_f_Avro_an_Avro_file_fails_and_says_which_package_to_add()
+    {
+        Copy("orders/region=eu/orders.avro");
+        var lake = LakeContext.Create(o => o.UseFiles(_lake.Root));
+
+        var read = () => lake.Dataset<Order>("orders").ReadAsync().ToListAsync().AsTask();
+        var open = () => Dataset.Open<Order>(_lake.Root).ReadAsync().ToListAsync().AsTask();
+
+        (await read.Should().ThrowAsync<NotSupportedException>())
+            .WithMessage("*orders.avro is an Avro file. Add the SolTechnology.DataLake.Avro package and call f.Avro() in UseFiles.");
+        (await open.Should().ThrowAsync<NotSupportedException>())
+            .WithMessage("*orders.avro is an Avro file. Add the SolTechnology.DataLake.Avro package and pass new DataLakeOptions { Files = f => f.Avro() } to Dataset.Open.");
     }
 
     private void Copy(string relative)

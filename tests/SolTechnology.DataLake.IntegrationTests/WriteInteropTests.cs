@@ -67,7 +67,7 @@ public class WriteInteropTests
         using var s3 = Silo.CreateClient();
 
         var lake = LakeContext.Create(
-            o => o.UseParquet(root, new S3Storage(s3), p => p.RowGroupSize(10)),
+            o => o.UseFiles(root, new S3Storage(s3), f => f.Parquet(p => p.RowGroupSize(10))),
             m => m.Dataset<Order>("orders").PartitionBy(r => r.Date, r => r.Country));
         await lake.Dataset<Order>("orders").AppendAsync(_rows);
 

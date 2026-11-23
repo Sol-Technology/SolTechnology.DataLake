@@ -40,7 +40,7 @@ jobs:
 
     - name: Pack
       run: |
-        for project in SolTechnology.DataLake SolTechnology.DataLake.Aws SolTechnology.DataLake.Azure SolTechnology.DataLake.Cli; do
+        for project in SolTechnology.DataLake SolTechnology.DataLake.Arrow SolTechnology.DataLake.Avro SolTechnology.DataLake.Aws SolTechnology.DataLake.Azure SolTechnology.DataLake.Cli; do
           dotnet pack "src/$project/$project.csproj" --no-build -c Release -o artifacts
         done
 

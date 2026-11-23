@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<RootNamespace>SolTechnology.DataLake.Avro</RootNamespace>
+		<AssemblyName>SolTechnology.DataLake.Avro</AssemblyName>
+		<PackageId>SolTechnology.DataLake.Avro</PackageId>
+		<Description>Avro container files (.avro) in SolTechnology.DataLake folder datasets, with f.Avro() in UseFiles: records into your classes with the same mapping as Parquet. The code is MIT; it uses AvroConvert, which has its own licence (free for noncommercial use and small companies, a commercial licence for others): https://github.com/AdrianStrugala/AvroConvert/blob/master/LICENSE.md</Description>
+		<PackageTags>avro apache-avro parquet lakehouse datalake data-lake dataset partitions</PackageTags>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="AvroConvert" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\SolTechnology.DataLake\SolTechnology.DataLake.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<InternalsVisibleTo Include="SolTechnology.DataLake.UnitTests" />
+		<InternalsVisibleTo Include="datalake" />
+	</ItemGroup>
+
+</Project>

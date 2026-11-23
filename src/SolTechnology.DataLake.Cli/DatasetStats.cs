@@ -16,7 +16,7 @@ internal sealed class DatasetStats
 {
     private readonly Dictionary<string, ColumnStats> _columns = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, HashSet<string?>> _partitions = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<FileFormat, int> _formats = [];
+    private readonly Dictionary<string, int> _formats = [];
     private long _rows;
     private long _rowGroups;
     private long _bytes;
@@ -25,20 +25,24 @@ internal sealed class DatasetStats
     public static async Task<DatasetStats> CollectAsync(ILakeStorage storage, string location, CancellationToken ct)
     {
         var stats = new DatasetStats();
-        foreach (var file in await DatasetFiles.ListAsync(storage, location, ct))
+        foreach (var (file, format) in await DatasetFiles.ListAsync(storage, location, Program.Formats, ct))
         {
             stats._files++;
             stats._bytes += file.Length;
-            var format = DatasetFiles.FormatOf(file.RelativePath);
-            stats._formats[format] = stats._formats.GetValueOrDefault(format) + 1;
+            stats._formats[format.Name] = stats._formats.GetValueOrDefault(format.Name) + 1;
             foreach (var (key, value) in HivePartitions.Parse(file.RelativePath))
             {
                 if (!stats._partitions.TryGetValue(key, out var values)) stats._partitions[key] = values = [];
                 values.Add(value);
             }
 
-            if (format == FileFormat.Parquet) await stats.AddParquetAsync(storage, file, ct);
-            else await foreach (var _ in UntypedReader.ReadAsync(storage, file.Location, ct)) stats._rows++;
+            if (format is ParquetFileFormat)
+            {
+                await stats.AddParquetAsync(storage, file, ct);
+                continue;
+            }
+            await using var stream = new RangeStream(storage, file);
+            stats._rows += await format.CountAsync(stream, file.Location, ct);
         }
         return stats;
     }
@@ -46,7 +50,7 @@ internal sealed class DatasetStats
     private async Task AddParquetAsync(ILakeStorage storage, LakeFile file, CancellationToken ct)
     {
         await using var stream = new RangeStream(storage, file);
-        await using var reader = await ParquetReader.CreateAsync(stream, new ParquetOptions { UseDateOnlyTypeForDates = true }, leaveStreamOpen: true, ct);
+        await using var reader = await ParquetReader.CreateAsync(stream, new Parquet.ParquetOptions { UseDateOnlyTypeForDates = true }, leaveStreamOpen: true, ct);
         var trust = ParquetStatistics.TrustsTimestamps(reader.Metadata?.CreatedBy);
         var fields = reader.Schema.GetDataFields();
         for (var g = 0; g < reader.RowGroupCount; g++)
@@ -57,7 +61,7 @@ internal sealed class DatasetStats
             foreach (var field in fields)
             {
                 var name = Name(field);
-                if (!_columns.TryGetValue(name, out var column)) _columns[name] = column = new ColumnStats(Program.TypeName(field));
+                if (!_columns.TryGetValue(name, out var column)) _columns[name] = column = new ColumnStats(ParquetFileFormat.TypeName(field));
                 column.Add(Statistics(group, field), field, trust);
             }
         }
@@ -81,7 +85,7 @@ internal sealed class DatasetStats
 
     public async Task WriteAsync(TextWriter output)
     {
-        var formats = string.Join(", ", _formats.OrderBy(f => f.Key).Select(f => $"{f.Value} {f.Key.ToString().ToLowerInvariant()}"));
+        var formats = string.Join(", ", _formats.OrderBy(f => Program.Formats.All.Select(format => format.Name).ToList().IndexOf(f.Key)).Select(f => $"{f.Value} {f.Key}"));
         await output.WriteLineAsync(string.Create(CultureInfo.InvariantCulture,
             $"{_files} files ({formats}), {Program.Size(_bytes)}, {_rows:N0} rows, {_rowGroups} row groups"));
         foreach (var (key, values) in _partitions)

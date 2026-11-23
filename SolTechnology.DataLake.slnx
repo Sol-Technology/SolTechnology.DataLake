@@ -24,6 +24,8 @@
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/SolTechnology.DataLake/SolTechnology.DataLake.csproj" />
+    <Project Path="src/SolTechnology.DataLake.Arrow/SolTechnology.DataLake.Arrow.csproj" />
+    <Project Path="src/SolTechnology.DataLake.Avro/SolTechnology.DataLake.Avro.csproj" />
     <Project Path="src/SolTechnology.DataLake.Aws/SolTechnology.DataLake.Aws.csproj" />
     <Project Path="src/SolTechnology.DataLake.Azure/SolTechnology.DataLake.Azure.csproj" />
     <Project Path="src/SolTechnology.DataLake.Cli/SolTechnology.DataLake.Cli.csproj" />

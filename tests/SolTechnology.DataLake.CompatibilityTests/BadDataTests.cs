@@ -27,7 +27,7 @@ public class BadDataTests
     {
         var read = async () =>
         {
-            await foreach (var _ in UntypedReader.ReadAsync(LocalStorage.Instance, Path.Combine(Folder, file))) { }
+            await foreach (var _ in UntypedReader.ReadAsync(LocalStorage.Instance, Path.Combine(Folder, file), new FilesOptions().Formats(method => method))) { }
         };
 
         if (Readable.ContainsKey(file))

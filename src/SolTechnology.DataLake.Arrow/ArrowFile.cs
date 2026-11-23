@@ -1,7 +1,7 @@
 using System.Runtime.CompilerServices;
-using SolTechnology.DataLake.Arrow;
+using SolTechnology.DataLake.Formats;
 
-namespace SolTechnology.DataLake.Formats;
+namespace SolTechnology.DataLake.Arrow;
 
 /// <summary>
 /// Arrow IPC files (Feather v2) in a dataset, batch by batch, with the same mapping as Parquet. Arrow files have no

@@ -1,6 +1,5 @@
 using System.Linq.Expressions;
 using System.Runtime.CompilerServices;
-using Parquet;
 using SolTechnology.DataLake.Filtering;
 using SolTechnology.DataLake.Formats;
 using SolTechnology.DataLake.Mapping;
@@ -10,30 +9,31 @@ using SolTechnology.DataLake.Writing;
 
 namespace SolTechnology.DataLake.Providers;
 
-// Everything a Parquet dataset needs besides its filter. Provider is null for Dataset.Open, Options null when the
+// Everything a folder dataset needs besides its filter. Provider is null for Dataset.Open, Writes null when the
 // dataset can't be written; MissingIsEmpty: a location that does not exist reads as empty instead of failing.
-internal sealed record ParquetDatasetSettings(
+internal sealed record FilesDatasetSettings(
     LakeProvider? Provider,
     ILakeStorage Storage,
     string Location,
     DatasetSpec Spec,
-    ParquetProviderOptions? Options,
+    FileFormats Formats,
+    ParquetOptions? Writes,
     Func<Stream> TempStream,
     bool MissingIsEmpty)
 {
-    public string ProviderName => Provider?.Name ?? "parquet";
+    public string ProviderName => Provider?.Name ?? "files";
 }
 
 /// <summary>
-/// Parquet, Avro and Arrow IPC files under one location, possibly partitioned hive-style (<c>date=2026-10-29/country=PL/</c>),
-/// read into <typeparamref name="T"/>, and Parquet files written from it.
+/// Data files under one location, possibly partitioned hive-style (<c>date=2026-10-29/country=PL/</c>), read into
+/// <typeparamref name="T"/> by their <see cref="FileFormats"/>, and Parquet files written from it.
 /// </summary>
-internal sealed class ParquetDataset<T> : IDataset<T>, IMeasuredQuery<T> where T : class
+internal sealed class FilesDataset<T> : IDataset<T>, IMeasuredQuery<T> where T : class
 {
-    private readonly ParquetDatasetSettings _settings;
+    private readonly FilesDatasetSettings _settings;
     private readonly Expression<Func<T, bool>>? _filter;
 
-    public ParquetDataset(ParquetDatasetSettings settings, Expression<Func<T, bool>>? filter)
+    public FilesDataset(FilesDatasetSettings settings, Expression<Func<T, bool>>? filter)
     {
         _settings = settings;
         _filter = filter;
@@ -47,10 +47,10 @@ internal sealed class ParquetDataset<T> : IDataset<T>, IMeasuredQuery<T> where T
     {
         ArgumentNullException.ThrowIfNull(predicate);
         predicate = SpanContains.Rewrite(predicate);
-        if (_filter is null) return new ParquetDataset<T>(_settings, predicate);
+        if (_filter is null) return new FilesDataset<T>(_settings, predicate);
         var parameter = _filter.Parameters[0];
         var body = Expression.AndAlso(_filter.Body, new Rebind(predicate.Parameters[0], parameter).Visit(predicate.Body));
-        return new ParquetDataset<T>(_settings, Expression.Lambda<Func<T, bool>>(body, parameter));
+        return new FilesDataset<T>(_settings, Expression.Lambda<Func<T, bool>>(body, parameter));
     }
 
     public IAsyncEnumerable<T> ReadAsync(CancellationToken cancellationToken) => ReadAsync(new ScanMetrics(), cancellationToken);
@@ -74,27 +74,16 @@ internal sealed class ParquetDataset<T> : IDataset<T>, IMeasuredQuery<T> where T
         }
     }
 
-    /// <summary>Without a filter, Parquet files are counted from their footers; anything else is read.</summary>
+    /// <summary>Without a filter, each file is counted by its format: Parquet from the footer, others row by row.</summary>
     public async Task<long> CountAsync(CancellationToken cancellationToken)
     {
         if (_filter is not null) return await ReadAsync(cancellationToken).LongCountAsync(cancellationToken).ConfigureAwait(false);
 
         long count = 0;
-        foreach (var file in await ListAsync(cancellationToken).ConfigureAwait(false))
+        foreach (var (file, format) in await ListAsync(cancellationToken).ConfigureAwait(false))
         {
-            if (DatasetFiles.FormatOf(file.RelativePath) != FileFormat.Parquet)
-            {
-                await foreach (var _ in UntypedReader.ReadAsync(_settings.Storage, file.Location, cancellationToken).ConfigureAwait(false)) count++;
-                continue;
-            }
             await using var stream = new RangeStream(_settings.Storage, file);
-            await using var reader = await ReadFailure.Guard(() => ParquetReader.CreateAsync(stream, leaveStreamOpen: true, cancellationToken: cancellationToken),
-                file.Location, null).ConfigureAwait(false);
-            for (var g = 0; g < reader.RowGroupCount; g++)
-            {
-                using var group = reader.OpenRowGroupReader(g);
-                count += group.RowCount;
-            }
+            count += await format.CountAsync(stream, file.Location, cancellationToken).ConfigureAwait(false);
         }
         return count;
     }
@@ -126,8 +115,8 @@ internal sealed class ParquetDataset<T> : IDataset<T>, IMeasuredQuery<T> where T
         if (_filter is not null) throw new InvalidOperationException("Where filters reads; write to the dataset itself.");
         var spec = _settings.Spec;
         if (_settings.Provider is null)
-            throw new InvalidOperationException("Dataset.Open is read-only. Write through a LakeContext; for a script, LakeContext.Create(o => o.UseParquet(root), m => m.Dataset<T>(name)).");
-        if (spec.Declared is null || _settings.Options is null)
+            throw new InvalidOperationException("Dataset.Open is read-only. Write through a LakeContext; for a script, LakeContext.Create(o => o.UseFiles(root), m => m.Dataset<T>(name)).");
+        if (spec.Declared is null || _settings.Writes is null)
             throw new InvalidOperationException($"Dataset '{spec.Name}' is not declared in {spec.Context}'s model, so it can only be read. " +
                                                 $"Declare it in OnModelCreating: model.Dataset<{typeof(T).Name}>(\"{spec.Name}\").");
 
@@ -135,7 +124,7 @@ internal sealed class ParquetDataset<T> : IDataset<T>, IMeasuredQuery<T> where T
         Tag(activity);
         activity?.SetTag("datalake.write.mode", mode.ToString());
         if (where is not null) activity?.SetTag("datalake.filter", where.ToString());
-        var writer = new DatasetWriter<T>(_settings.Storage, _settings.Location, spec, _settings.Options, _settings.TempStream, _settings.ProviderName);
+        var writer = new DatasetWriter<T>(_settings.Storage, _settings.Location, spec, _settings.Formats, _settings.Writes, _settings.TempStream, _settings.ProviderName);
         var result = await writer.WriteAsync(mode, rows, where, ct).ConfigureAwait(false);
         DataLakeTelemetry.RecordWrite(result, activity);
         activity?.SetStatus(System.Diagnostics.ActivityStatusCode.Ok);
@@ -151,11 +140,11 @@ internal sealed class ParquetDataset<T> : IDataset<T>, IMeasuredQuery<T> where T
         activity.SetTag("datalake.provider", _settings.ProviderName);
     }
 
-    private async Task<List<LakeFile>> ListAsync(CancellationToken ct)
+    private async Task<List<(LakeFile File, ILakeFileFormat Format)>> ListAsync(CancellationToken ct)
     {
         try
         {
-            return await DatasetFiles.ListAsync(_settings.Storage, _settings.Location, ct).ConfigureAwait(false);
+            return await DatasetFiles.ListAsync(_settings.Storage, _settings.Location, _settings.Formats, ct).ConfigureAwait(false);
         }
         catch (DirectoryNotFoundException) when (_settings.MissingIsEmpty)
         {
@@ -169,7 +158,7 @@ internal sealed class ParquetDataset<T> : IDataset<T>, IMeasuredQuery<T> where T
         var predicate = _filter is null ? null : PredicateTranslator.Translate(_filter);
         var residual = _filter?.Compile();
 
-        foreach (var file in await ListAsync(cancellationToken).ConfigureAwait(false))
+        foreach (var (file, format) in await ListAsync(cancellationToken).ConfigureAwait(false))
         {
             metrics.Files++;
             var partitions = PartitionValues(map, file);
@@ -181,13 +170,7 @@ internal sealed class ParquetDataset<T> : IDataset<T>, IMeasuredQuery<T> where T
 
             var scan = new FileScan<T>(map, partitions, predicate, residual, metrics);
             await using var stream = new RangeStream(_settings.Storage, file, bytes => metrics.BytesRead += bytes);
-            var rows = DatasetFiles.FormatOf(file.RelativePath) switch
-            {
-                FileFormat.Avro => AvroFile<T>.ReadAsync(stream, file.Location, scan, cancellationToken),
-                FileFormat.Arrow => ArrowFile<T>.ReadAsync(stream, file.Location, scan, cancellationToken),
-                _ => ParquetFile<T>.ReadAsync(stream, file.Location, scan, cancellationToken),
-            };
-            await foreach (var row in rows.ConfigureAwait(false))
+            await foreach (var row in format.ReadAsync(stream, file.Location, scan, cancellationToken).ConfigureAwait(false))
                 yield return row;
         }
     }

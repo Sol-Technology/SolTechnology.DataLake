@@ -21,7 +21,7 @@ internal sealed record FileScan<T>(
 /// </summary>
 internal static class ParquetFile<T> where T : class
 {
-    private static readonly ParquetOptions Options = new() { UseDateOnlyTypeForDates = true };
+    private static readonly Parquet.ParquetOptions Options = new() { UseDateOnlyTypeForDates = true };
 
     public static async IAsyncEnumerable<T> ReadAsync(Stream stream, string location, FileScan<T> scan, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
     {

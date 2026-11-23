@@ -13,7 +13,7 @@ namespace SolTechnology.DataLake.Aws;
 /// <example>
 /// <code>
 /// var s3 = new AmazonS3Client(); // credentials and region from the default AWS chain
-/// services.AddDataLake&lt;ShopLake&gt;(o => o.UseParquet("s3://shop/", new S3Storage(s3)));
+/// services.AddDataLake&lt;ShopLake&gt;(o => o.UseFiles("s3://shop/", new S3Storage(s3)));
 /// </code>
 /// </example>
 public sealed class S3Storage(IAmazonS3 client) : ILakeStorage

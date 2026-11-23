@@ -3,7 +3,7 @@ using SolTechnology.Avro;
 
 namespace SolTechnology.DataLake.UnitTests;
 
-// AvroConvert comes under the DataLake licence, so DataLake users do not see the AvroConvert licence notice.
+// Avro in DataLake is read by AvroConvert under AvroConvert's own licence, so its licence notice shows as for any AvroConvert user.
 [NonParallelizable]
 public class AvroLicenceTests
 {
@@ -13,7 +13,7 @@ public class AvroLicenceTests
     }
 
     [Test]
-    public async Task Reading_Avro_shows_no_AvroConvert_licence_notice()
+    public async Task Reading_Avro_shows_the_AvroConvert_licence_notice()
     {
         using var lake = new TempDataset();
         File.Copy(Path.Combine(AppContext.BaseDirectory, "Fixtures", "orders.avro"), lake.PathOf("orders.avro"));
@@ -26,14 +26,9 @@ public class AvroLicenceTests
             Console.SetError(stderr);
 
             ResetNotice();
-            await Dataset.Open<IdOnly>(lake.Root).ReadAsync().ToListAsync();
-            var afterDataLake = stderr.ToString();
+            await Dataset.Open<IdOnly>(lake.Root, new DataLakeOptions { Files = f => f.Avro() }).ReadAsync().ToListAsync();
 
-            ResetNotice();
-            AvroConvert.Serialize(new IdOnly { Id = 1 });
-
-            afterDataLake.Should().NotContain("[AvroConvert]");
-            stderr.ToString().Should().Contain("[AvroConvert]", "AvroConvert used without DataLake still shows its notice");
+            stderr.ToString().Should().Contain("[AvroConvert]", "DataLake does not cover AvroConvert's licence");
         }
         finally
         {

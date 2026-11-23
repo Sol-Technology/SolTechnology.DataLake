@@ -121,7 +121,7 @@ public abstract class StorageWriteTests
     [Test]
     public async Task A_context_appends_replaces_and_deletes_partitions_on_this_storage()
     {
-        var lake = LakeContext.Create(o => o.UseParquet(_root, _storage), m => m.Dataset<Sale>("sales").PartitionBy(s => s.Country));
+        var lake = LakeContext.Create(o => o.UseFiles(_root, _storage), m => m.Dataset<Sale>("sales").PartitionBy(s => s.Country));
         var sales = lake.Dataset<Sale>("sales");
         (await sales.CountAsync()).Should().Be(0, "a dataset that does not exist yet reads as empty");
 

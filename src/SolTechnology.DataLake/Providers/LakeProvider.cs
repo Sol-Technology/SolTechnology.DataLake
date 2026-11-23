@@ -1,4 +1,5 @@
 using System.Text.Json;
+using SolTechnology.DataLake.Formats;
 using SolTechnology.DataLake.Storage;
 
 namespace SolTechnology.DataLake.Providers;
@@ -6,7 +7,7 @@ namespace SolTechnology.DataLake.Providers;
 /// <summary>A storage technology behind a <see cref="LakeContext"/>. Internal until Iceberg proves the shape.</summary>
 internal abstract class LakeProvider
 {
-    /// <summary>For messages and telemetry: <c>parquet</c>, <c>in-memory</c>.</summary>
+    /// <summary>For messages and telemetry: <c>files</c>, <c>in-memory</c>.</summary>
     public abstract string Name { get; }
 
     public abstract IDataset<T> Dataset<T>(DatasetSpec spec) where T : class;
@@ -20,13 +21,19 @@ internal sealed record DatasetSpec(string Name, string Context, DatasetModel? De
     public IReadOnlyList<System.Reflection.PropertyInfo> PartitionBy => Declared?.PartitionBy ?? [];
 }
 
-/// <summary>Parquet files in a folder per dataset under one root, on any <see cref="ILakeStorage"/>.</summary>
-internal sealed class ParquetProvider(string name, string root, ILakeStorage storage, ParquetProviderOptions options, Func<Stream> tempStream) : LakeProvider
+/// <summary>
+/// A folder of files per dataset under one root, on any <see cref="ILakeStorage"/>: Parquet written, Parquet and the
+/// added formats read. <paramref name="method"/> is the builder method, for messages.
+/// </summary>
+internal sealed class FilesProvider(string name, string method, string root, ILakeStorage storage, FilesOptions options, Func<Stream> tempStream) : LakeProvider
 {
+    private readonly FileFormats _formats = options.Formats(format => $"call f.{format} in {method}");
+
     public override string Name => name;
 
     public override IDataset<T> Dataset<T>(DatasetSpec spec) =>
-        new ParquetDataset<T>(new ParquetDatasetSettings(this, storage, $"{root.TrimEnd('/', '\\')}/{spec.Name}", spec, options, tempStream, MissingIsEmpty: true), null);
+        new FilesDataset<T>(new FilesDatasetSettings(this, storage, $"{root.TrimEnd('/', '\\')}/{spec.Name}", spec, _formats, options.ParquetSettings, tempStream,
+            MissingIsEmpty: true), null);
 
     // A folder exists once a file is written into it.
     public override Task EnsureCreatedAsync(LakeModel model, CancellationToken ct) => Task.CompletedTask;

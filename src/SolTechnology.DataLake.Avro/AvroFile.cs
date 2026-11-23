@@ -5,9 +5,10 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using SolTechnology.Avro;
+using SolTechnology.DataLake.Formats;
 using SolTechnology.DataLake.Mapping;
 
-namespace SolTechnology.DataLake.Formats;
+namespace SolTechnology.DataLake.Avro;
 
 /// <summary>
 /// Avro object container files. AvroConvert decodes each record generically (records as dictionaries,
@@ -19,7 +20,6 @@ internal static class AvroFile<T> where T : class
 {
     public static async IAsyncEnumerable<T> ReadAsync(Stream stream, string location, FileScan<T> scan, [EnumeratorCancellation] CancellationToken ct)
     {
-        AvroComponent.Use();
         var fields = SchemaFields(AvroConvert.GetSchema(stream), location);
         stream.Position = 0;
 

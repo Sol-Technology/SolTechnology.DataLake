@@ -4,7 +4,7 @@ using System.Runtime.CompilerServices;
 namespace SolTechnology.DataLake.Storage;
 
 /// <summary>
-/// Files in memory, for tests: <c>UseInMemory()</c> runs the Parquet provider on it. Locations start with
+/// Files in memory, for tests: <c>UseInMemory()</c> runs the files provider on it. Locations start with
 /// <c>memory://</c>. Thread-safe; a written file is never changed in place, so readers in progress keep their bytes.
 /// </summary>
 public sealed class MemoryStorage : ILakeStorage

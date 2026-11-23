@@ -57,7 +57,7 @@ public class CorpusTests
     {
         var head = expected["head"]?.AsArray() ?? [];
         var rows = 0;
-        await foreach (var row in UntypedReader.ReadAsync(LocalStorage.Instance, Path.Combine(Data, file)))
+        await foreach (var row in UntypedReader.ReadAsync(LocalStorage.Instance, Path.Combine(Data, file), new FilesOptions().Formats(method => method)))
         {
             if (rows < head.Count)
             {

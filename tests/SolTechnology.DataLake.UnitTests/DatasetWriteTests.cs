@@ -29,17 +29,18 @@ public class DatasetWriteTests(string provider)
 
     private string Location(string name) => provider == "local" ? $"{_temp.Root}/{name}" : $"memory://lake/{name}";
 
-    private LakeContext Lake(Action<LakeModelBuilder>? model = null, Action<ParquetProviderOptions>? options = null) =>
+    private LakeContext Lake(Action<LakeModelBuilder>? model = null, Action<ParquetOptions>? options = null) =>
         LakeContext.Create(o =>
         {
-            if (provider == "local") o.UseParquet(_temp.Root, configure: options);
-            else o.UseInMemory(_memory, options);
+            Action<FilesOptions>? files = options is null ? null : f => f.Parquet(options);
+            if (provider == "local") o.UseFiles(_temp.Root, configure: files);
+            else o.UseInMemory(_memory, files);
         }, model);
 
     private IDataset<T> Writable<T>(params Expression<Func<T, object?>>[] partitionBy) where T : class =>
         Lake(m => m.Dataset<T>("data").PartitionBy(partitionBy)).Dataset<T>("data");
 
-    private IDataset<T> Writable<T>(Action<ParquetProviderOptions> options, params Expression<Func<T, object?>>[] partitionBy) where T : class =>
+    private IDataset<T> Writable<T>(Action<ParquetOptions> options, params Expression<Func<T, object?>>[] partitionBy) where T : class =>
         Lake(m => m.Dataset<T>("data").PartitionBy(partitionBy), options).Dataset<T>("data");
 
     private async Task<List<string>> FilesOf(string name = "data")
@@ -793,7 +794,7 @@ public class DatasetWriteTests(string provider)
     public async Task When_the_first_old_file_can_not_be_removed_nothing_changes()
     {
         var storage = new FlakyDeletes(new MemoryStorage(), failAfter: 0);
-        var dataset = LakeContext.Create(o => o.UseParquet("memory://lake", storage), m => m.Dataset<Sale>("data").PartitionBy(s => s.Date)).Dataset<Sale>("data");
+        var dataset = LakeContext.Create(o => o.UseFiles("memory://lake", storage), m => m.Dataset<Sale>("data").PartitionBy(s => s.Date)).Dataset<Sale>("data");
         await dataset.AppendAsync(Sales(30));
         storage.Arm();
 
@@ -807,7 +808,7 @@ public class DatasetWriteTests(string provider)
     public async Task When_a_later_old_file_can_not_be_removed_the_error_lists_it()
     {
         var storage = new FlakyDeletes(new MemoryStorage(), failAfter: 1);
-        var dataset = LakeContext.Create(o => o.UseParquet("memory://lake", storage), m => m.Dataset<Sale>("data").PartitionBy(s => s.Date)).Dataset<Sale>("data");
+        var dataset = LakeContext.Create(o => o.UseFiles("memory://lake", storage), m => m.Dataset<Sale>("data").PartitionBy(s => s.Date)).Dataset<Sale>("data");
         await dataset.AppendAsync(Sales(30));
         storage.Arm();
 
@@ -820,7 +821,7 @@ public class DatasetWriteTests(string provider)
     public async Task When_nothing_can_be_removed_the_error_says_rows_are_read_twice()
     {
         var storage = new FlakyDeletes(new MemoryStorage(), failAfter: 0, newFilesToo: true);
-        var dataset = LakeContext.Create(o => o.UseParquet("memory://lake", storage), m => m.Dataset<Sale>("data").PartitionBy(s => s.Date)).Dataset<Sale>("data");
+        var dataset = LakeContext.Create(o => o.UseFiles("memory://lake", storage), m => m.Dataset<Sale>("data").PartitionBy(s => s.Date)).Dataset<Sale>("data");
         await dataset.AppendAsync(Sales(30));
         storage.Arm();
 

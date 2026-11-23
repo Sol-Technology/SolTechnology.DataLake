@@ -28,6 +28,8 @@
 
 	<ItemGroup>
 		<ProjectReference Include="..\..\src\SolTechnology.DataLake\SolTechnology.DataLake.csproj" />
+		<ProjectReference Include="..\..\src\SolTechnology.DataLake.Arrow\SolTechnology.DataLake.Arrow.csproj" />
+		<ProjectReference Include="..\..\src\SolTechnology.DataLake.Avro\SolTechnology.DataLake.Avro.csproj" />
 		<ProjectReference Include="..\..\src\SolTechnology.DataLake.Azure\SolTechnology.DataLake.Azure.csproj" />
 		<ProjectReference Include="..\..\src\SolTechnology.DataLake.Cli\SolTechnology.DataLake.Cli.csproj" />
 	</ItemGroup>

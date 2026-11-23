@@ -6,7 +6,7 @@ namespace SolTechnology.DataLake;
 /// <summary>
 /// The datasets of one storage technology, like EF Core's DbContext but without change tracking: reads stream, writes go
 /// straight to storage. Derive from it, declare datasets in <see cref="OnModelCreating"/>, expose them as properties.
-/// The provider (Parquet folders, in memory, later Iceberg) is chosen in the options, so the code that reads and writes
+/// The provider (folders of files, in memory, later Iceberg) is chosen in the options, so the code that reads and writes
 /// does not change with it.
 /// </summary>
 /// <example>
@@ -19,7 +19,7 @@ namespace SolTechnology.DataLake;
 ///         model.Dataset&lt;Order&gt;("orders").PartitionBy(o => o.Date, o => o.Country);
 /// }
 ///
-/// services.AddDataLake&lt;IShopLake, ShopLake&gt;(o => o.UseParquet("s3://shop/", new S3Storage(s3)));
+/// services.AddDataLake&lt;IShopLake, ShopLake&gt;(o => o.UseFiles("s3://shop/", new S3Storage(s3)));
 /// </code>
 /// </example>
 public abstract class LakeContext : IDataLake

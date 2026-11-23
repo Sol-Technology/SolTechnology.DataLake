@@ -3,6 +3,7 @@ using System.Linq.Expressions;
 using System.Reflection;
 using System.Text;
 using SolTechnology.DataLake.Filtering;
+using SolTechnology.DataLake.Formats;
 using SolTechnology.DataLake.Mapping;
 using SolTechnology.DataLake.Partitions;
 using SolTechnology.DataLake.Providers;
@@ -10,7 +11,7 @@ using SolTechnology.DataLake.Storage;
 
 namespace SolTechnology.DataLake.Writing;
 
-/// <summary>The five writes of <see cref="IDataset{T}"/>, as the Parquet provider runs them.</summary>
+/// <summary>The five writes of <see cref="IDataset{T}"/>, as the files provider runs them.</summary>
 internal enum DatasetWrite { Append, Overwrite, OverwriteWhere, ReplacePartitions }
 
 /// <summary>
@@ -23,7 +24,8 @@ internal sealed class DatasetWriter<T> where T : class
     private readonly ILakeStorage _storage;
     private readonly string _location;
     private readonly DatasetSpec _spec;
-    private readonly ParquetProviderOptions _options;
+    private readonly FileFormats _formats;
+    private readonly ParquetOptions _options;
     private readonly Func<Stream> _tempStream;
     private readonly string _provider;
     private readonly ClassMap<T> _map;
@@ -34,11 +36,12 @@ internal sealed class DatasetWriter<T> where T : class
     private readonly List<LakeFile> _written = [];
     private int _sequence;
 
-    public DatasetWriter(ILakeStorage storage, string location, DatasetSpec spec, ParquetProviderOptions options, Func<Stream> tempStream, string provider)
+    public DatasetWriter(ILakeStorage storage, string location, DatasetSpec spec, FileFormats formats, ParquetOptions options, Func<Stream> tempStream, string provider)
     {
         _storage = storage;
         _location = location.TrimEnd('/');
         _spec = spec;
+        _formats = formats;
         _options = options;
         _tempStream = tempStream;
         _provider = provider;
@@ -146,7 +149,7 @@ internal sealed class DatasetWriter<T> where T : class
     {
         try
         {
-            return await DatasetFiles.ListAsync(_storage, _location, ct).ConfigureAwait(false);
+            return (await DatasetFiles.ListAsync(_storage, _location, _formats, ct).ConfigureAwait(false)).Select(f => f.File).ToList();
         }
         catch (DirectoryNotFoundException)
         {
@@ -217,8 +220,8 @@ internal sealed class DatasetWriter<T> where T : class
         // Rows are checked on the values they are stored with ("" as null), the same way as the files they replace.
         return new FilesFilter(predicate, file =>
         {
-            var partitions = ParquetDataset<T>.PartitionValues(_map, file);
-            return name => ParquetDataset<T>.Exact(partitions, name);
+            var partitions = FilesDataset<T>.PartitionValues(_map, file);
+            return name => FilesDataset<T>.Exact(partitions, name);
         }, row => name => _keys.FirstOrDefault(k => k.Property.Property.Name == name) is { } key ? new ColumnFacts.Exact(key.Stored(row)) : null, _spec.Name);
     }
 

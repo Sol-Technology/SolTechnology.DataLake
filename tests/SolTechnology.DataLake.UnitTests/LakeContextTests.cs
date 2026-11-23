@@ -101,10 +101,10 @@ public class LakeContextTests
     [Test]
     public void A_context_needs_exactly_one_provider()
     {
-        FluentActions.Invoking(() => LakeContextOptions.For<ShopLake>(_ => { })).Should().Throw<InvalidOperationException>().WithMessage("*UseParquet*UseInMemory*");
-        FluentActions.Invoking(() => LakeContextOptions.For<ShopLake>(o => o.UseInMemory().UseParquet("/data")))
+        FluentActions.Invoking(() => LakeContextOptions.For<ShopLake>(_ => { })).Should().Throw<InvalidOperationException>().WithMessage("*UseFiles*UseInMemory*");
+        FluentActions.Invoking(() => LakeContextOptions.For<ShopLake>(o => o.UseInMemory().UseFiles("/data")))
             .Should().Throw<InvalidOperationException>().WithMessage("*one provider*second context class*");
-        FluentActions.Invoking(() => LakeContextOptions.For<ShopLake>(o => o.UseParquet("s3://shop/")))
+        FluentActions.Invoking(() => LakeContextOptions.For<ShopLake>(o => o.UseFiles("s3://shop/")))
             .Should().Throw<ArgumentException>().WithMessage("*not a local path*S3Storage*");
     }
 
@@ -121,7 +121,7 @@ public class LakeContextTests
     [Test]
     public async Task A_read_only_storage_fails_on_write()
     {
-        var lake = LakeContext.Create(o => o.UseParquet("ro://lake", new ReadOnlyStorage()), m => m.Dataset<Order>("orders"));
+        var lake = LakeContext.Create(o => o.UseFiles("ro://lake", new ReadOnlyStorage()), m => m.Dataset<Order>("orders"));
 
         var write = () => lake.Dataset<Order>("orders").AppendAsync(Orders);
 
