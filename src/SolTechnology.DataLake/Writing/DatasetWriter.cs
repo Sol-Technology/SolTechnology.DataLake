@@ -34,6 +34,8 @@ internal sealed class DatasetWriter<T> where T : class
     private readonly string _writeId = Guid.NewGuid().ToString("N")[..12];
     private readonly Dictionary<string, OpenPartition> _open = new(StringComparer.Ordinal);
     private readonly List<LakeFile> _written = [];
+    // Every location an upload started for: a storage can keep a file whose upload then failed (lost response, cancellation).
+    private readonly List<string> _uploads = [];
     private int _sequence;
 
     public DatasetWriter(ILakeStorage storage, string location, DatasetSpec spec, FileFormats formats, ParquetWriteOptions options, Func<Stream> tempStream, string provider)
@@ -61,9 +63,9 @@ internal sealed class DatasetWriter<T> where T : class
         // Everything that can fail about the old files fails here, before a single new file is written.
         var candidates = mode switch
         {
-            DatasetWrite.Overwrite => existing.Select(f => (File: f, Partition: "")).ToList(),
-            DatasetWrite.OverwriteWhere => existing.Where(filter!.Matches).Select(f => (File: f, Partition: "")).ToList(),
-            DatasetWrite.ReplacePartitions => existing.Select(f => (File: f, Partition: Canonical(PartitionTexts(f)))).ToList(),
+            DatasetWrite.Overwrite => existing.Select(f => (File: f, Partition: (object?[]?)null)).ToList(),
+            DatasetWrite.OverwriteWhere => existing.Where(filter!.Matches).Select(f => (File: f, Partition: (object?[]?)null)).ToList(),
+            DatasetWrite.ReplacePartitions => existing.Select(f => (File: f, Partition: (object?[]?)PartitionValues(f))).ToList(),
             _ => [],
         };
 
@@ -75,9 +77,8 @@ internal sealed class DatasetWriter<T> where T : class
                 ArgumentNullException.ThrowIfNull(row, nameof(rows));
                 if (filter is not null && !filter.Covers(row))
                     throw new InvalidDataException($"A row does not match the filter of the overwrite on '{_spec.Name}' ({where}); it would not be replaced next time.");
-                var values = _keys.Select(k => k.Value(row)).ToArray();
-                var folder = Folder(values);
-                if (!_open.TryGetValue(folder, out var partition)) _open[folder] = partition = new OpenPartition(folder, Canonical(values));
+                var folder = Folder(_keys.Select(k => k.Value(row)).ToArray());
+                if (!_open.TryGetValue(folder, out var partition)) _open[folder] = partition = new OpenPartition(folder, _keys.Select(k => k.Stored(row)).ToArray());
                 partition.Buffer.Add(row);
                 if (partition.Buffer.Count >= _options.RowGroupSizeValue) await FlushAsync(partition, ct).ConfigureAwait(false);
                 count++;
@@ -93,7 +94,7 @@ internal sealed class DatasetWriter<T> where T : class
         {
             // The write failure is what the caller needs; files that could not be removed are listed on it.
             var left = await RemoveWrittenAsync().ConfigureAwait(false);
-            if (left.Count > 0) e.Data["SolTechnology.DataLake.LeftoverFiles"] = left.Select(f => f.Location).ToArray();
+            if (left.Count > 0) e.Data["SolTechnology.DataLake.LeftoverFiles"] = left.ToArray();
             throw;
         }
         finally
@@ -101,9 +102,9 @@ internal sealed class DatasetWriter<T> where T : class
             foreach (var partition in _open.Values) await partition.DisposeAsync().ConfigureAwait(false);
         }
 
-        var touched = _open.Values.Select(p => p.Canonical).ToHashSet(StringComparer.Ordinal);
+        var touched = _open.Values.Select(p => p.Values).ToHashSet(PartitionComparer.Instance);
         var remove = mode == DatasetWrite.ReplacePartitions
-            ? candidates.Where(c => touched.Contains(c.Partition)).Select(c => c.File).ToList()
+            ? candidates.Where(c => touched.Contains(c.Partition!)).Select(c => c.File).ToList()
             : candidates.Select(c => c.File).ToList();
         var removed = await RemoveOldAsync(remove).ConfigureAwait(false);
         return new LakeWriteResult { Written = _written, Removed = removed, Rows = count };
@@ -132,7 +133,7 @@ internal sealed class DatasetWriter<T> where T : class
                     // Usually the same cause (no delete permission, storage down): old and new rows are both read now.
                     throw new IOException(
                         $"Could not remove {file.Location} from '{_spec.Name}', nor the new files again: rows are now read twice. " +
-                        $"Delete either the old files or these new ones: {string.Join(", ", left.Select(f => f.Location))}.", e);
+                        $"Delete either the old files or these new ones: {string.Join(", ", left)}.", e);
                 }
                 failed.Add((file, e));
             }
@@ -184,14 +185,12 @@ internal sealed class DatasetWriter<T> where T : class
         }
     }
 
-    private string?[] PartitionTexts(LakeFile file)
+    // The values a file's folders read as (Status=active as Status.Active, Bucket=007 as 7), in key order.
+    private object?[] PartitionValues(LakeFile file)
     {
-        var parsed = HivePartitions.Parse(file.RelativePath);
-        return _keys.Select(k => parsed.GetValueOrDefault(k.Column)).ToArray();
+        var values = FilesDataset<T>.PartitionValues(_map, file);
+        return _keys.Select(k => values.FirstOrDefault(v => v.Key.Property.Name == k.Property.Property.Name).Value).ToArray();
     }
-
-    // Partition values as text, null as its own marker: equal for the same partition however its folder was escaped.
-    private static string Canonical(string?[] values) => string.Join('\u001F', values.Select(v => v ?? "\u0000"));
 
     private string Folder(string?[] values)
     {
@@ -265,24 +264,29 @@ internal sealed class DatasetWriter<T> where T : class
         temp.Position = 0;
         var name = $"part-{Interlocked.Increment(ref _sequence):00000}-{_writeId}{Extension()}";
         var relative = partition.Folder.Length == 0 ? name : $"{partition.Folder}/{name}";
-        var file = await _storage.WriteAsync($"{_location}/{relative}", temp, WriteMode.CreateNew, ct).ConfigureAwait(false);
+        var location = $"{_location}/{relative}";
+        _uploads.Add(location);
+        var file = await _storage.WriteAsync(location, temp, WriteMode.CreateNew, ct).ConfigureAwait(false);
         _written.Add(file with { RelativePath = relative });
         await partition.DisposeAsync().ConfigureAwait(false);
     }
 
-    /// <summary>Removes the files this write wrote, best effort. Returns the ones that are still there.</summary>
-    private async Task<List<LakeFile>> RemoveWrittenAsync()
+    /// <summary>
+    /// Removes the files this write uploaded, best effort, including one whose upload failed: the storage may have kept it.
+    /// File names are unique to this write, and deleting a missing file is not an error. Returns the ones that are still there.
+    /// </summary>
+    private async Task<List<string>> RemoveWrittenAsync()
     {
-        var left = new List<LakeFile>();
-        foreach (var file in _written)
+        var left = new List<string>();
+        foreach (var location in _uploads)
         {
             try
             {
-                await _storage.DeleteAsync(file.Location, CancellationToken.None).ConfigureAwait(false);
+                await _storage.DeleteAsync(location, CancellationToken.None).ConfigureAwait(false);
             }
             catch (Exception e) when (e is not OutOfMemoryException)
             {
-                left.Add(file);
+                left.Add(location);
             }
         }
         return left;
@@ -296,10 +300,10 @@ internal sealed class DatasetWriter<T> where T : class
         _ => ".parquet",
     };
 
-    private sealed class OpenPartition(string folder, string canonical) : IAsyncDisposable
+    private sealed class OpenPartition(string folder, object?[] values) : IAsyncDisposable
     {
         public string Folder { get; } = folder;
-        public string Canonical { get; } = canonical;
+        public object?[] Values { get; } = values;
         public List<T> Buffer { get; } = [];
         public ParquetFileWriter<T>? Writer { get; set; }
         public Stream? Temp { get; set; }
@@ -310,6 +314,21 @@ internal sealed class DatasetWriter<T> where T : class
             if (Temp is not null) await Temp.DisposeAsync().ConfigureAwait(false);
             Writer = null;
             Temp = null;
+        }
+    }
+
+    /// <summary>Partition values compared as values: an enum with an enum, a number with a number, null with null.</summary>
+    private sealed class PartitionComparer : IEqualityComparer<object?[]>
+    {
+        public static readonly PartitionComparer Instance = new();
+
+        public bool Equals(object?[]? x, object?[]? y) => x is not null && y is not null && x.SequenceEqual(y);
+
+        public int GetHashCode(object?[] values)
+        {
+            var hash = new HashCode();
+            foreach (var value in values) hash.Add(value);
+            return hash.ToHashCode();
         }
     }
 

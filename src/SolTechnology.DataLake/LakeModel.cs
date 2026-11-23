@@ -47,7 +47,7 @@ public sealed class DatasetBuilder<T> : IDatasetBuilder where T : class
     public DatasetBuilder<T> PartitionBy(params Expression<Func<T, object?>>[] properties)
     {
         ArgumentNullException.ThrowIfNull(properties);
-        var mapped = ColumnNames.MappedProperties(typeof(T)).ToHashSet();
+        var mapped = ColumnNames.MappedProperties(typeof(T)).ToList();
         _partitionBy = properties.Select(p => Property(p, mapped)).ToArray();
         if (_partitionBy.Distinct().Count() != _partitionBy.Length)
             throw new ArgumentException($"Dataset '{_name}': PartitionBy lists a property twice.", nameof(properties));
@@ -65,11 +65,15 @@ public sealed class DatasetBuilder<T> : IDatasetBuilder where T : class
 
     DatasetModel IDatasetBuilder.Build() => new(_name, typeof(T), _partitionBy, _namespace);
 
-    private PropertyInfo Property(Expression<Func<T, object?>> expression, HashSet<PropertyInfo> mapped)
+    // The expression's property is reflected on the class that declares it, maybe a base class, so it is matched by name;
+    // when a property is hidden with 'new', its declaring class tells the two apart.
+    private PropertyInfo Property(Expression<Func<T, object?>> expression, List<PropertyInfo> mapped)
     {
         var body = expression.Body is UnaryExpression { NodeType: ExpressionType.Convert } convert ? convert.Operand : expression.Body;
-        if (body is MemberExpression { Member: PropertyInfo property } member && member.Expression == expression.Parameters[0] && mapped.Contains(property))
-            return property;
+        if (body is MemberExpression { Member: PropertyInfo property } member && member.Expression == expression.Parameters[0]
+            && (mapped.FirstOrDefault(m => m.Name == property.Name && m.DeclaringType == property.DeclaringType)
+                ?? mapped.FirstOrDefault(m => m.Name == property.Name)) is { } match)
+            return match;
         throw new ArgumentException($"Dataset '{_name}': PartitionBy takes properties of {typeof(T).Name} that map to columns, like o => o.Date; got {expression}.");
     }
 }

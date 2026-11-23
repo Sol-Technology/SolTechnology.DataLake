@@ -557,6 +557,61 @@ public class DatasetWriteTests(string provider)
         (await dataset.ReadAsync().Select(s => s.Id).ToListAsync()).Should().Equal(2);
     }
 
+    public enum Stage { Active, Closed }
+
+    public sealed class Ticket
+    {
+        public long Id { get; set; }
+        public Stage Stage { get; set; }
+        public int Bucket { get; set; }
+        public bool Flag { get; set; }
+    }
+
+    // Folders written by other tools read as the same values as ours, so they are the same partitions.
+    [TestCase("Stage=active/Bucket=7/Flag=true")]
+    [TestCase("Stage=Active/Bucket=007/Flag=true")]
+    [TestCase("Stage=Active/Bucket=7/Flag=True")]
+    public async Task ReplacePartitions_replaces_folders_that_read_as_the_same_values(string folder)
+    {
+        var ours = Lake(m => m.Dataset<Ticket>("ours").PartitionBy(t => t.Stage, t => t.Bucket, t => t.Flag)).Dataset<Ticket>("ours");
+        var file = (await ours.AppendAsync([new Ticket { Id = 1, Stage = Stage.Active, Bucket = 7, Flag = true }])).Written[0];
+        var bytes = new byte[file.Length];
+        await Storage.ReadAsync(file, 0, bytes);
+        await Storage.WriteAsync($"{Location("data")}/{folder}/part-00000.parquet", new MemoryStream(bytes));
+        var dataset = Writable<Ticket>(t => t.Stage, t => t.Bucket, t => t.Flag);
+
+        var result = await dataset.ReplacePartitionsAsync([new Ticket { Id = 2, Stage = Stage.Active, Bucket = 7, Flag = true }]);
+
+        result.Removed.Should().ContainSingle().Which.RelativePath.Should().Be($"{folder}/part-00000.parquet");
+        (await dataset.CountAsync()).Should().Be(1);
+        (await dataset.ReadAsync().Select(t => t.Id).ToListAsync()).Should().Equal(2);
+    }
+
+    public class Entity
+    {
+        public long Id { get; set; }
+        public string? Tenant { get; set; }
+    }
+
+    public sealed class Invoice : Entity
+    {
+        public decimal Amount { get; set; }
+    }
+
+    [Test]
+    public async Task Partitions_can_be_properties_of_a_base_class()
+    {
+        var dataset = Writable<Invoice>(i => i.Tenant);
+        await dataset.AppendAsync([new Invoice { Id = 1, Tenant = "a" }, new Invoice { Id = 2, Tenant = "b" }]);
+
+        await dataset.OverwriteAsync([new Invoice { Id = 3, Tenant = "a" }], where: i => i.Tenant == "a");
+        await dataset.ReplacePartitionsAsync([new Invoice { Id = 4, Tenant = "b" }]);
+
+        (await FilesOf()).Select(p => p[..p.IndexOf('/')]).Should().BeEquivalentTo("Tenant=a", "Tenant=b");
+        (await dataset.Where(i => i.Tenant == "a").ReadAsync().Select(i => i.Id).ToListAsync()).Should().Equal(3);
+        (await dataset.ReadAsync().OrderBy(i => i.Id).Select(i => i.Id).ToListAsync()).Should().Equal(3, 4);
+    }
+
     [Test]
     public async Task Files_partitioned_differently_than_declared_stop_the_write()
     {
@@ -663,6 +718,21 @@ public class DatasetWriteTests(string provider)
             await Task.Yield();
             throw new TimeoutException("source failed");
         }
+    }
+
+    [Test]
+    public async Task A_file_the_storage_stored_before_its_write_failed_is_removed_too()
+    {
+        // The second upload lands, but the call fails: a lost response retried with If-None-Match finds the file there.
+        var storage = new StoresThenFails(new MemoryStorage(), failOn: 2);
+        var dataset = LakeContext.Create(o => o.UseFiles("memory://lake", storage), m => m.Dataset<Sale>("data").PartitionBy(s => s.Date)).Dataset<Sale>("data");
+
+        var append = () => dataset.AppendAsync(Sales(30));
+
+        await append.Should().ThrowAsync<LakeFileExistsException>();
+        storage.Writes.Should().Be(2);
+        storage.Inner.Locations.Should().BeEmpty();
+        (await dataset.CountAsync()).Should().Be(0);
     }
 
     [Test]
@@ -854,6 +924,23 @@ public class DatasetWriteTests(string provider)
             if (_armed && newFilesToo && !_old.Contains(location)) throw new IOException("no delete permission");
             if (_old.Contains(location) && _deletes++ >= failAfter) throw new IOException("storage is down");
             return inner.DeleteAsync(location, ct);
+        }
+    }
+
+    private sealed class StoresThenFails(MemoryStorage inner, int failOn) : ILakeStorage
+    {
+        public MemoryStorage Inner => inner;
+        public int Writes { get; private set; }
+        public bool CanHandle(string location) => inner.CanHandle(location);
+        public IAsyncEnumerable<LakeFile> ListAsync(string location, CancellationToken ct = default) => inner.ListAsync(location, ct);
+        public ValueTask<int> ReadAsync(LakeFile file, long offset, Memory<byte> buffer, CancellationToken ct = default) => inner.ReadAsync(file, offset, buffer, ct);
+        public ValueTask DeleteAsync(string location, CancellationToken ct = default) => inner.DeleteAsync(location, ct);
+
+        public async ValueTask<LakeFile> WriteAsync(string location, Stream content, WriteMode mode = WriteMode.Overwrite, CancellationToken ct = default)
+        {
+            var file = await inner.WriteAsync(location, content, mode, ct);
+            if (++Writes == failOn) throw new LakeFileExistsException(location);
+            return file;
         }
     }
 

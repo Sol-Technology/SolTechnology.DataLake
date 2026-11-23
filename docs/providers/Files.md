@@ -57,6 +57,7 @@ services.AddDataLake<IShopLake, ShopLake>((sp, o) => o.UseFiles("s3://shop/", ne
 | time travel | no |
 
 * Before writing, the provider checks the folders it finds against the declared partitions (names case-insensitive, so Spark's `date=` is `Date`). Files partitioned differently stop the write.
+* `ReplacePartitionsAsync` compares partitions by the values their folders read as, so `Status=active` is the partition of `Status.Active` and `Bucket=007` the one of `7`.
 * A dataset that does not exist reads as empty, on every storage.
 
 ## Files

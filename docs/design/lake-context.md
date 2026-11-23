@@ -97,7 +97,7 @@ public interface IDataset<T> : IDatasetQuery<T> where T : class
 
 Writes go only to **tables declared in the model**. `Dataset<T>("typo")` can read (and reads nothing), but a write throws `InvalidOperationException: table 'typo' is not in ShopLake's model`. No silent new folders, no surprise deletes.
 
-A failed or cancelled write deletes, best effort, the files it already uploaded.
+A failed or cancelled write deletes, best effort, the files it already uploaded, and the one it was uploading: a storage may keep a file whose upload call failed.
 
 ### D3. Model in `OnModelCreating`
 
