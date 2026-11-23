@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-	<!-- Query results from Databricks SQL, Snowflake and Flight SQL servers into classes, through ADBC. See README.md. -->
+	<!-- Query results from Databricks SQL and Snowflake into classes, through ADBC. Flight SQL is its own sample (SolTechnology.DataLake.Samples.FlightSql). See README.md. -->
 	<PropertyGroup>
 		<OutputType>Exe</OutputType>
 		<TargetFramework>net10.0</TargetFramework>
@@ -9,7 +9,6 @@
 
 	<ItemGroup>
 		<PackageReference Include="Apache.Arrow.Adbc.Drivers.Databricks" />
-		<PackageReference Include="Apache.Arrow.Adbc.Drivers.FlightSql" />
 		<PackageReference Include="Apache.Arrow.Adbc.Drivers.Interop.Snowflake" />
 	</ItemGroup>
 

@@ -263,7 +263,7 @@ var result = await statement.ExecuteQueryAsync();
 await foreach (var trip in ArrowConvert.DeserializeAsync<Trip>(result.Stream!)) { }
 ```
 
-Samples for Databricks, Snowflake and Flight SQL: [samples/SolTechnology.DataLake.Samples.Adbc](../samples/SolTechnology.DataLake.Samples.Adbc/README.md).
+Samples for Databricks, Snowflake and Flight SQL: [samples/SolTechnology.DataLake.Samples.Adbc](../samples/SolTechnology.DataLake.Samples.Adbc/README.md) (Flight SQL is tested in CI against a real server).
 
 * Read: integers, floats, half floats, booleans, (large / view) strings and binaries, decimal32 to decimal256 (into `decimal` when it fits), UUID, date32/64, time32/64, timestamps in any unit (with a time zone: an instant; without: wall-clock), durations, lists (also large and fixed size), structs, maps, dictionary-encoded columns.
 * Written: the Parquet types above, as Arrow types: timestamp(us, "UTC") / timestamp(us), decimal128, the `arrow.uuid` extension, time64(us), `TimeSpan` as duration(us).
@@ -329,7 +329,7 @@ Credentials come from the environment, like the cloud CLIs: the default AWS chai
 * Nested columns in legacy layouts (repeated fields without a LIST group, two-level lists) and into `object` or `Dictionary<string, object?>` still go value by value, slower than typed ones.
 * Parquet.Net 6.1 writes the min/max statistics of microsecond and nanosecond timestamps in milliseconds. Those statistics are not used for files written by Parquet.Net directly, so such filters read the row groups instead of skipping them. Files DataLake writes have them fixed; files from Spark, PyIceberg, pyarrow or Trino are fine.
 * Tested against Silo (a MinIO fork) and Azurite in Docker. ADLS Gen2, OneLake and R2 use the same APIs but were not tested against the real services yet.
-* The ADBC samples compile in CI but run only against your own accounts.
+* ADBC: the Flight SQL sample runs in the integration tests against a Flight SQL server in a container; the Databricks and Snowflake samples run only against your own accounts. The ADBC driver packages ship native libraries for x64 only.
 
 ## Compatibility
 

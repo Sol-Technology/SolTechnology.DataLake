@@ -10,6 +10,7 @@
   </Folder>
   <Folder Name="/samples/">
     <Project Path="samples/SolTechnology.DataLake.Samples.Adbc/SolTechnology.DataLake.Samples.Adbc.csproj" />
+    <Project Path="samples/SolTechnology.DataLake.Samples.FlightSql/SolTechnology.DataLake.Samples.FlightSql.csproj" />
   </Folder>
   <Folder Name="/spikes/">
     <Project Path="spikes/IcebergSpike/IcebergSpike.csproj" />

@@ -6,6 +6,7 @@ Real services in Docker through Testcontainers. One setup for the whole run (`In
 - **Keycloak**: OAuth2 provider; tests, PyIceberg and Trino get tokens with client credentials
 - **Lakekeeper** on Postgres: Iceberg REST catalog, needs a bearer token, vends S3 credentials per table
 - **PyIceberg** (image from `Docker/pyiceberg`): writes `shop.orders` through the catalog and dumps the rows it reads; that is the expected result
+- **GizmoSQL** (only for `AdbcSampleTests`): an Arrow Flight SQL server on DuckDB; the Flight SQL sample queries it through the ADBC driver. Skipped on Arm machines (the driver ships x64 native libraries only) unless `DATALAKE_ADBC_NATIVE=1` under an x64 .NET
 - **Trino**: copies the table to `shop.orders_mor` and changes it with `DELETE` / `UPDATE`, which writes position delete files
 
 ```bash
