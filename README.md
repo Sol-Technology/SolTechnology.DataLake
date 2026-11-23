@@ -23,6 +23,8 @@ DataLake does it in C#, on your own classes.
 dotnet add package SolTechnology.DataLake --prerelease
 dotnet add package SolTechnology.DataLake.Aws --prerelease     # for s3://
 dotnet add package SolTechnology.DataLake.Azure --prerelease   # for abfss://, ADLS Gen2, OneLake
+dotnet add package SolTechnology.DataLake.Arrow --prerelease   # ArrowConvert, ADBC results, .arrow files
+dotnet add package SolTechnology.DataLake.Avro --prerelease    # .avro files
 ```
 
 ```csharp
@@ -44,7 +46,7 @@ public class ShopLake(LakeContextOptions<ShopLake> options) : LakeContext(option
 }
 
 // The only place that knows the technology. Tests: o.UseInMemory(). Iceberg in 0.3.
-services.AddDataLake<IShopLake, ShopLake>(o => o.UseParquet("s3://shop/", new S3Storage(new AmazonS3Client())));
+services.AddDataLake<IShopLake, ShopLake>(o => o.UseFiles("s3://shop/", new S3Storage(new AmazonS3Client())));
 
 await foreach (var order in lake.Orders.Where(o => o.Date == yesterday && o.Country == "PL").ReadAsync())
 {
@@ -54,18 +56,18 @@ await lake.Orders.ReplacePartitionsAsync(todaysOrders);
 ```
 
 What it does:
-* **Datasets** - a folder of Parquet, Avro or Arrow files is one table. Hive partitions (`date=…/country=…`) fill properties too
+* **Datasets** - a folder of files is one table: Parquet built in, Avro and Arrow IPC with their packages (`f => f.Avro().Arrow()`). Hive partitions (`date=…/country=…`) fill properties too
 * **Skips what it can** - a LINQ filter skips whole files by partition and whole row groups by min/max statistics; the rest is filtered row by row. One day of 30 reads [33x faster](benchmarks/SolTechnology.DataLake.Benchmarks/README.md) than Parquet.Net file by file
 * **Your classes** - columns map to properties by name (`[DataMember]`, snake_case policy, any case). Structs, lists and maps map to nested classes, lists and dictionaries
 * **No guessing** - a UTC timestamp reads into `DateTimeZone` or `DateTimeOffset`, one without a zone into `UnzonedDateTime`. A missing column, a null in a non-nullable property or a lossy conversion is an error that says what to change
 * **S3 and Azure** - ranged reads, so a skipped file costs nothing. S3-compatible storage (MinIO, R2) and ADLS Gen2 / OneLake through the Blob API
-* **One API, the technology in one place** - a `LakeContext` like EF Core's `DbContext`, with `IDataset<T>` to read and write; the provider (Parquet folders now, Iceberg next) is chosen at registration. Interfaces to mock, `UseInMemory()` for tests
+* **One API, the technology in one place** - a `LakeContext` like EF Core's `DbContext`, with `IDataset<T>` to read and write; the provider (folders of files now, Iceberg next) is chosen at registration. Interfaces to mock, `UseInMemory()` for tests
 * **Writes** - append, overwrite, overwrite with a filter, replace partitions, delete: the words Spark, delta-rs and PyIceberg use. Parquet files with types and statistics that Spark, Trino, DuckDB and pyarrow read right (checked in CI)
 * **Apache Arrow** - record batches, IPC files and ADBC query results (Databricks SQL, Snowflake, Flight SQL) into your classes and back
 * **`datalake` CLI** - `ls`, `schema`, `head`, `cat`, `stats` for any location
 * **OpenTelemetry** - every read is a `datalake.scan` activity with files, row groups and bytes skipped and read
 
-Full documentation: [docs/Documentation.md](./docs/Documentation.md), and per provider: [Parquet](./docs/providers/Parquet.md), [InMemory](./docs/providers/InMemory.md).
+Full documentation: [docs/Documentation.md](./docs/Documentation.md), and per provider: [Files](./docs/providers/Files.md), [InMemory](./docs/providers/InMemory.md).
 
 ## Plan
 
@@ -85,12 +87,14 @@ Step by step: [docs/ROADMAP.md](./docs/ROADMAP.md).
 
 | Package | What is inside |
 |---|---|
-| SolTechnology.DataLake | contexts and datasets, Parquet and in-memory providers, Avro and Arrow reads, local disk |
+| SolTechnology.DataLake | contexts and datasets, Parquet, `UseFiles` and `UseInMemory`, `Dataset.Open`, local disk |
 | SolTechnology.DataLake.Aws | S3 and S3-compatible storage |
 | SolTechnology.DataLake.Azure | Azure Blob Storage, ADLS Gen2, OneLake |
-| SolTechnology.DataLake.Cli | `datalake` command line tool |
+| SolTechnology.DataLake.Arrow | `ArrowConvert` for record batches, ADBC results and IPC files; Arrow IPC files in datasets |
+| SolTechnology.DataLake.Avro | Avro files in datasets, through AvroConvert |
+| SolTechnology.DataLake.Cli | `datalake` command line tool, every format |
 
-Cloud SDKs live in their own packages, so you only get the one you use.
+Cloud SDKs, Apache.Arrow and AvroConvert live in their own packages, so you only get what you use.
 
 ## Design partners
 

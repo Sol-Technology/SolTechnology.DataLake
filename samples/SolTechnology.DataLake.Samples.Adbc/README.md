@@ -1,6 +1,6 @@
 # ADBC samples
 
-[ADBC](https://arrow.apache.org/adbc/) drivers return query results as Arrow record batches. `ArrowConvert.DeserializeAsync<T>` maps them into your classes with the same rules as Parquet datasets: columns by name (case-insensitive, `[DataMember(Name = ...)]`), timestamps with a time zone into `DateTimeZone` / `DateTimeOffset` / UTC `DateTime`, without one into `UnzonedDateTime`, lossless conversions only.
+[ADBC](https://arrow.apache.org/adbc/) drivers return query results as Arrow record batches. `ArrowConvert.DeserializeAsync<T>` from the SolTechnology.DataLake.Arrow package maps them into your classes with the same rules as Parquet datasets: columns by name (case-insensitive, `[DataMember(Name = ...)]`), timestamps with a time zone into `DateTimeZone` / `DateTimeOffset` / UTC `DateTime`, without one into `UnzonedDateTime`, lossless conversions only.
 
 | Sample | Package | Settings |
 |---|---|---|

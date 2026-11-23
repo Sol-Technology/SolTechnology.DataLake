@@ -52,6 +52,7 @@ Writes, and Arrow results in your classes.
 - [x] Benchmark vs `pyarrow.dataset` on the same data
 - [x] Faster nested columns (compiled per type, like flat ones)
 - [x] `LakeContext` with a provider per context, `IDataset<T>`, `UseInMemory()` for tests ([design](design/lake-context.md))
+- [x] Packages split: core with Parquet, `UseFiles` and `UseInMemory`; Arrow and Avro as format plug-ins in their own packages (`f.Arrow()`, `f.Avro()`); MIT for all
 
 ## 0.3 Iceberg read
 

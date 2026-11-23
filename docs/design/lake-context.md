@@ -2,6 +2,8 @@
 
 Status: implemented on 20 November 2026 (steps 1-8), before `0.2.0-preview.1` was published. Current behaviour: [Documentation.md](../Documentation.md).
 
+Renamed on 23 November 2026: `UseParquet` became `UseFiles` (`FilesOptions`, Parquet settings in `f.Parquet(...)`), the internal `ParquetDataset<T>` became `FilesDataset<T>`, and Avro and Arrow moved to their own packages (`f.Avro()`, `f.Arrow()`). The text below keeps the old names.
+
 ## Goal
 
 Code that reads and writes tables does not change when the table technology changes. You pick the technology once, where the context is configured. Like EF Core, where swapping SQL Server for PostgreSQL is a change in `AddDbContext`, not in queries.

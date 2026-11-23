@@ -1,15 +1,15 @@
-# Parquet provider
+# Files provider
 
-Parquet files in folders, one folder per dataset under a root, partitioned hive-style (`root/orders/date=2026-10-29/country=PL/`). Reads Avro and Arrow IPC files too. What Spark, Trino, DuckDB, pyarrow and Databricks read and write as a "Parquet table" without a table format.
+A folder of files per dataset under a root, partitioned hive-style (`root/orders/date=2026-10-29/country=PL/`), without transactions. Writes are Parquet. Reads take Parquet, and Avro and Arrow IPC files when their package is added. What Spark, Trino, DuckDB, pyarrow and Databricks read and write as a "Parquet table" without a table format.
 
 ```csharp
-services.AddDataLake<IShopLake, ShopLake>((sp, o) => o.UseParquet("s3://shop/", new S3Storage(sp.GetRequiredService<IAmazonS3>()), p => p
-    .Compression(ParquetCompression.Zstd)
-    .RowGroupSize(128 * 1024)
-    .TargetFileSize(512L << 20)));
+services.AddDataLake<IShopLake, ShopLake>((sp, o) => o.UseFiles("s3://shop/", new S3Storage(sp.GetRequiredService<IAmazonS3>()), f => f
+    .Parquet(p => p.Compression(ParquetCompression.Zstd).RowGroupSize(128 * 1024).TargetFileSize(512L << 20))
+    .Avro()));
 ```
 
 * [Options](#options)
+* [Formats](#formats)
 * [What it can do](#what-it-can-do)
 * [Files](#files)
 * [Writes](#writes)
@@ -19,13 +19,31 @@ services.AddDataLake<IShopLake, ShopLake>((sp, o) => o.UseParquet("s3://shop/", 
 
 ## Options
 
-`UseParquet(root, storage, configure)`: `root` is a local path, `file://` or a URI the storage handles; `storage` is needed for anything but a local path.
+`UseFiles(root, storage, configure)`: `root` is a local path, `file://` or a URI the storage handles; `storage` is needed for anything but a local path. `configure` gets a `FilesOptions`.
 
-| Option | Default | |
+| `FilesOptions` | |
+|---|---|
+| `Parquet(p => ...)` | how Parquet files are written, below |
+| `Avro()` | read `.avro` files; from SolTechnology.DataLake.Avro |
+| `Arrow()` | read `.arrow`, `.feather`, `.ipc`, `.arrows` files; from SolTechnology.DataLake.Arrow |
+
+| `ParquetOptions` | Default | |
 |---|---|---|
 | `Compression` | `Snappy` | `Snappy`, `Zstd`, `Gzip`, `None` |
 | `RowGroupSize` | 131 072 rows | each partition being written keeps this many rows in memory |
 | `TargetFileSize` | 512 MiB | a file is closed after the row group that crosses it |
+
+## Formats
+
+| Format | Files | Package | In `UseFiles` |
+|---|---|---|---|
+| Parquet | `.parquet`, `.parq` | SolTechnology.DataLake | built in |
+| Avro | `.avro` | SolTechnology.DataLake.Avro | `f => f.Avro()` |
+| Arrow IPC | `.arrow`, `.feather`, `.ipc`, `.arrows` | SolTechnology.DataLake.Arrow | `f => f.Arrow()` |
+
+* A `.avro` or Arrow file in a dataset without its format added is a `NotSupportedException` that names the package and the method to call. It is not skipped, so rows are never missing without a word.
+* Other files (`README.md`, `.csv`) are left out.
+* `Dataset.Open` takes the same: `new DataLakeOptions { Files = f => f.Avro() }`.
 
 ## What it can do
 
@@ -43,7 +61,7 @@ services.AddDataLake<IShopLake, ShopLake>((sp, o) => o.UseParquet("s3://shop/", 
 
 ## Files
 
-A dataset is every Parquet (`.parquet`, `.parq`), Avro (`.avro`) and Arrow IPC (`.arrow`, `.feather`, `.ipc`) file under its folder.
+A dataset is every file under its folder in one of its [formats](#formats).
 
 * Files are read in path order, row groups in file order.
 * Hidden files are left out: names starting with `_` or `.` (`_SUCCESS`, `.part-0.parquet.crc`, `_temporary/`), unless they are a partition (`_x=1/`).
@@ -51,9 +69,9 @@ A dataset is every Parquet (`.parquet`, `.parq`), Avro (`.avro`) and Arrow IPC (
 * Nothing is read until you enumerate `ReadAsync()`. Opening the same dataset again reads the files again; there is no cache.
 * A file that can't be read (corrupt, or a feature Parquet.Net doesn't support) is an `InvalidDataException` with the file and the column in the message, and the original exception inside.
 
-Avro files are read through AvroConvert and mapped with the same rules as Parquet: names, nullability, partitions, types (`timestamp-*` is UTC, `local-timestamp-*` has no zone, `date`, `time-*`, `decimal`, `uuid`, enums by symbol name, records, arrays, maps). Avro has no statistics, so only partitions skip files. AvroConvert comes with DataLake under the DataLake licence, so it doesn't write its own licence notice. A licence you declare for AvroConvert itself (`AvroConvert.License`) is still checked by AvroConvert.
+Avro files are read through AvroConvert and mapped with the same rules as Parquet: names, nullability, partitions, types (`timestamp-*` is UTC, `local-timestamp-*` has no zone, `date`, `time-*`, `decimal`, `uuid`, enums by symbol name, records, arrays, maps). Avro has no statistics, so only partitions skip files. AvroConvert has its own licence, and without `AvroConvert.License` declared it prints its licence notice, as for any AvroConvert user.
 
-Arrow IPC files (Feather v2) are read batch by batch with the same mapping. They have no statistics either. Writes produce Parquet only.
+Arrow IPC files (Feather v2) and streams are read batch by batch with the same mapping. They have no statistics either. Writes produce Parquet only.
 
 ## Writes
 
@@ -85,7 +103,7 @@ Types written, chosen so Spark, Trino, DuckDB, pyarrow and Iceberg read them as 
 
 ```csharp
 var s3 = new AmazonS3Client();   // credentials and region from the default AWS chain
-services.AddDataLake<ShopLake>(o => o.UseParquet("s3://shop/", new S3Storage(s3)));
+services.AddDataLake<ShopLake>(o => o.UseFiles("s3://shop/", new S3Storage(s3)));
 ```
 
 * `s3://` and `s3a://` locations.
@@ -97,7 +115,7 @@ services.AddDataLake<ShopLake>(o => o.UseParquet("s3://shop/", new S3Storage(s3)
 
 ```csharp
 var blobs = new BlobServiceClient(new Uri("https://shop.blob.core.windows.net"), new DefaultAzureCredential());
-services.AddDataLake<ShopLake>(o => o.UseParquet("abfss://lake@shop.dfs.core.windows.net/", new AzureBlobStorage(blobs)));
+services.AddDataLake<ShopLake>(o => o.UseFiles("abfss://lake@shop.dfs.core.windows.net/", new AzureBlobStorage(blobs)));
 ```
 
 `AzureBlobStorage` uses the Blob API, which ADLS Gen2 and OneLake also serve.

@@ -2,7 +2,7 @@
 
 Version 0.2 (preview). The API can change until 1.0.
 
-This page is what every provider shares. What a provider stores, how and at what cost: [Parquet](providers/Parquet.md), [InMemory](providers/InMemory.md). Iceberg comes in 0.3.
+This page is what every provider shares. What a provider stores, how and at what cost: [Files](providers/Files.md), [InMemory](providers/InMemory.md). Iceberg comes in 0.3.
 
 * [Install](#install)
 * [Contexts](#contexts)
@@ -27,8 +27,19 @@ This page is what every provider shares. What a provider stores, how and at what
 dotnet add package SolTechnology.DataLake --prerelease
 dotnet add package SolTechnology.DataLake.Aws --prerelease      # s3://
 dotnet add package SolTechnology.DataLake.Azure --prerelease    # abfss://, wasbs://, https://, az://
+dotnet add package SolTechnology.DataLake.Arrow --prerelease    # ArrowConvert, ADBC, .arrow files
+dotnet add package SolTechnology.DataLake.Avro --prerelease     # .avro files
 dotnet tool install -g SolTechnology.DataLake.Cli --prerelease  # datalake
 ```
+
+| Package | What is inside | Licence |
+|---|---|---|
+| SolTechnology.DataLake | contexts, datasets, Parquet, `UseFiles`, `UseInMemory`, `Dataset.Open`, local disk and memory | MIT |
+| SolTechnology.DataLake.Aws | `S3Storage` | MIT |
+| SolTechnology.DataLake.Azure | `AzureBlobStorage` | MIT |
+| SolTechnology.DataLake.Arrow | `ArrowConvert`, Arrow IPC files in datasets (`f.Arrow()`) | MIT |
+| SolTechnology.DataLake.Avro | Avro files in datasets (`f.Avro()`) | MIT; uses AvroConvert, which has its own licence |
+| SolTechnology.DataLake.Cli | the `datalake` tool, every format | MIT |
 
 .NET 10.
 
@@ -51,11 +62,11 @@ public class ShopLake(LakeContextOptions<ShopLake> options) : LakeContext(option
 }
 
 services.AddDataLake<IShopLake, ShopLake>((sp, o) => o
-    .UseParquet("s3://shop/", new S3Storage(sp.GetRequiredService<IAmazonS3>()), p => p.Compression(ParquetCompression.Zstd))
+    .UseFiles("s3://shop/", new S3Storage(sp.GetRequiredService<IAmazonS3>()), f => f.Parquet(p => p.Compression(ParquetCompression.Zstd)))
     .ColumnNaming(JsonNamingPolicy.SnakeCaseLower));
 ```
 
-* **The provider is the only thing that knows the technology.** `UseParquet(root, storage, ...)` or `UseInMemory()`; the code that reads and writes `lake.Orders` does not change with it. Provider settings go in the provider's own callback; what all providers share (`ColumnNaming`) goes on the builder.
+* **The provider is the only thing that knows the technology.** `UseFiles(root, storage, ...)` or `UseInMemory()`; the code that reads and writes `lake.Orders` does not change with it. Provider settings go in the provider's own callback; what all providers share (`ColumnNaming`) goes on the builder.
 * **The model** (`OnModelCreating`) declares the datasets that can be written and how they are partitioned. It is built once per context class, on first use. A dataset not in the model can be read, but a write throws: a typo never creates or overwrites data.
 * **Partitioning in the model is for creating a dataset.** An existing dataset partitioned differently is an error on write, never silently rewritten.
 * **Registration**: `AddDataLake<TContext>` or `AddDataLake<TService, TContext>` (your interface resolves to the same instance), with `(sp, o) => ...` when the provider needs services. Singleton: a context holds no per-request state. It does not own or dispose the SDK clients you pass in.
@@ -71,11 +82,11 @@ public class ShopLake : LakeContext, IShopLake
 
 public class ArchiveLake(LakeContextOptions<ArchiveLake> options) : ShopLake(options), IArchiveLake;
 
-services.AddDataLake<IShopLake, ShopLake>(o => o.UseParquet("s3://shop/", s3));
-services.AddDataLake<IArchiveLake, ArchiveLake>(o => o.UseParquet("s3://archive/", s3));
+services.AddDataLake<IShopLake, ShopLake>(o => o.UseFiles("s3://shop/", s3));
+services.AddDataLake<IArchiveLake, ArchiveLake>(o => o.UseFiles("s3://archive/", s3));
 ```
 
-* **Without DI**: `new ShopLake(LakeContextOptions.For<ShopLake>(o => o.UseParquet("/data")))`. **Without a class**, for scripts: `LakeContext.Create(o => o.UseParquet("/data"), m => m.Dataset<Order>("orders"))`.
+* **Without DI**: `new ShopLake(LakeContextOptions.For<ShopLake>(o => o.UseFiles("/data")))`. **Without a class**, for scripts: `LakeContext.Create(o => o.UseFiles("/data"), m => m.Dataset<Order>("orders"))`.
 * `EnsureCreatedAsync()` creates declared datasets that don't exist yet; folder-based providers have nothing to create.
 
 ## Read a dataset
@@ -115,12 +126,12 @@ await lake.Orders.OverwriteAsync(fixedOrders, where: o => o.Date == day);
 * `rows` is an `IEnumerable<T>` or an `IAsyncEnumerable<T>`. Every mapped property is a column, named like on read, so the rows read back into the same class.
 * Each write returns a `LakeWriteResult`: the files written, the files removed, the rows.
 * A failed or cancelled write removes the files it already wrote.
-* What a provider can't do throws `NotSupportedException` with what to do instead, never a silent approximation. The Parquet provider, for example, deletes whole files, so the filter of an overwrite or delete must be on partition columns. Each provider's page has the table.
+* What a provider can't do throws `NotSupportedException` with what to do instead, never a silent approximation. The files provider, for example, deletes whole files, so the filter of an overwrite or delete must be on partition columns. Each provider's page has the table.
 
 ## Tests
 
 * **Your logic**: mock your context's interface (`IShopLake`) or `IDataset<T>`. The interfaces have one method per operation and no optional parameters, so Moq and NSubstitute set them up directly; the shorter calls (`ReadAsync()`, `AppendAsync(IEnumerable<T>)`) are extension methods on top.
-* **Real reads and writes, no disk**: `UseInMemory()`. It is the Parquet provider on memory, not a second implementation, so it behaves like `UseParquet` (types, partitions, errors). See [InMemory](providers/InMemory.md).
+* **Real reads and writes, no disk**: `UseInMemory()`. It is the files provider on memory, not a second implementation, so it behaves like `UseFiles` (types, partitions, errors). See [InMemory](providers/InMemory.md).
 
 ```csharp
 var lake = new ShopLake(LakeContextOptions.For<ShopLake>(o => o.UseInMemory()));
@@ -144,8 +155,9 @@ await foreach (var order in orders.Where(o => o.Country == "PL").ReadAsync()) { 
 |---|---|---|
 | `Storage` | local disk | an `ILakeStorage` for other locations: `S3Storage`, `AzureBlobStorage`, or your own |
 | `ColumnNaming` | none | `JsonNamingPolicy` for property names without `[DataMember]`, e.g. `JsonNamingPolicy.SnakeCaseLower` for `created_at` |
+| `Files` | Parquet only | formats to read besides Parquet: `f => f.Avro()`, `f => f.Arrow()`, as in `UseFiles` |
 
-Unlike a context, a local folder that does not exist is an error here. Which files are read: [Parquet provider](providers/Parquet.md#files).
+Unlike a context, a local folder that does not exist is an error here. Which files are read: [Files provider](providers/Files.md#files).
 
 ## Partitions
 
@@ -240,7 +252,7 @@ What a read skipped and read: `ReadAsync(metrics)`, see [Read a dataset](#read-a
 
 ## Apache Arrow and ADBC
 
-`ArrowConvert` maps Arrow data to your classes and back, with the rules of this page (names, types, nested columns, no lossy conversions):
+In SolTechnology.DataLake.Arrow, namespace `SolTechnology.DataLake.Arrow`. `ArrowConvert` maps Arrow data to your classes and back, with the rules of this page (names, types, nested columns, no lossy conversions):
 
 ```csharp
 IReadOnlyList<Order> rows = ArrowConvert.Deserialize<Order>(recordBatch);
@@ -324,7 +336,7 @@ Credentials come from the environment, like the cloud CLIs: the default AWS chai
 
 ## Limits of 0.2
 
-* Iceberg tables come in 0.3 (read) and 1.0 (write), Delta Lake later. Until then the only real provider is Parquet folders: no transactions, no schema checks against files already there (see [Parquet](providers/Parquet.md)).
+* Iceberg tables come in 0.3 (read) and 1.0 (write), Delta Lake later. Until then the only real provider is folders of files: no transactions, no schema checks against files already there (see [Files](providers/Files.md)).
 * Free-text SQL over a context's datasets is not there yet; the options are recorded in [design/lake-context.md](design/lake-context.md).
 * Nested columns in legacy layouts (repeated fields without a LIST group, two-level lists) and into `object` or `Dictionary<string, object?>` still go value by value, slower than typed ones.
 * Parquet.Net 6.1 writes the min/max statistics of microsecond and nanosecond timestamps in milliseconds. Those statistics are not used for files written by Parquet.Net directly, so such filters read the row groups instead of skipping them. Files DataLake writes have them fixed; files from Spark, PyIceberg, pyarrow or Trino are fine.
