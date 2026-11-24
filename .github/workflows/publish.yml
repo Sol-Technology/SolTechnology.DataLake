@@ -38,6 +38,13 @@ jobs:
         dotnet test tests/SolTechnology.DataLake.CompatibilityTests -c Release --no-build
         dotnet test tests/SolTechnology.DataLake.IntegrationTests -c Release --no-build
 
+    - name: NuGet README
+      # nuget.org shows HTML as text and does not resolve relative links: the packages get README.md without
+      # the <!-- github-only --> blocks, with links pointing to this tag on GitHub.
+      run: |
+        perl -0pi -e 's/<!-- github-only -->.*?<!-- \/github-only -->\s*//gs; s/[ \t]*<br\s*\/?>//g; s{\]\((?!https?://|#|mailto:)(?:\./)?}{](https://github.com/$ENV{GITHUB_REPOSITORY}/blob/$ENV{GITHUB_REF_NAME}/}g' README.md
+        if grep -nE '<(p|a|img|picture|br)[ >/]' README.md; then echo "::error::HTML left in README.md"; exit 1; fi
+
     - name: Pack
       run: |
         for project in SolTechnology.DataLake SolTechnology.DataLake.Arrow SolTechnology.DataLake.Avro SolTechnology.DataLake.Aws SolTechnology.DataLake.Azure SolTechnology.DataLake.Cli; do

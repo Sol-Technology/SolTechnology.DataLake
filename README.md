@@ -2,10 +2,12 @@
 
 **Read and write Apache Iceberg tables and Parquet datasets from .NET. No Spark, no JVM.**
 
+<!-- github-only -->
 <p>
  <a href="https://github.com/Sol-Technology/SolTechnology.DataLake/actions/workflows/build.yml"><img src="https://img.shields.io/github/actions/workflow/status/Sol-Technology/SolTechnology.DataLake/build.yml?label=Build&logo=github"></a>
  <a href="./LICENSE.md"><img src="https://img.shields.io/badge/licence-MIT-2F7D7A.svg"></a>
 </p>
+<!-- /github-only -->
 
 > **Status: 0.2 preview, not on NuGet yet.** It reads and writes Parquet datasets on local disk, S3 and Azure, and maps Apache Arrow (ADBC results, IPC files) to your classes. Iceberg tables come in 0.3. The API can change until 1.0.
 
