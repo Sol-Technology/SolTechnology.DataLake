@@ -1,6 +1,6 @@
 # Iceberg read: `UseIceberg` for milestone 0.3
 
-Status: draft, 24 November 2026. To be reviewed in a separate session before step 1, like [lake-context.md](lake-context.md).
+Status: draft, 24 November 2026, decisions below taken the same day. To be reviewed in a separate session before step 1, like [lake-context.md](lake-context.md).
 
 Sources: [ROADMAP.md](../ROADMAP.md) milestone 0.3, the [spike report](../../spikes/REPORT.md) and its reader in `spikes/IcebergSpike`, [lake-context.md](lake-context.md) (D3 `InNamespace`, D5 storage per table, D6 capability matrix), the product plan in the licensing repo (`ops/docs/DataLakePlan.md` F6, D3, D6, D7).
 
@@ -154,9 +154,15 @@ LakeVersion.Branch(string name)
 
 Steps 2 to 7 run on file fixtures only; the catalog (8) comes after the read path is right, so a reading bug is never mixed up with an auth bug.
 
+## Decisions
+
+Decided by Adrian on 24 November 2026, before the review:
+
+1. **Time travel on the interface.** `AsOf` is on `IDatasetQuery<T>` (I8); Delta will use the same call.
+2. **0.3 starts before the go/no-go conversations.** Recorded in the product plan (`ops/docs/DataLakePlan.md`); the conversations still decide what comes after 0.3.
+3. **Equality deletes in 0.3.** Step 7 is part of the milestone, so 0.3 needs an equality-delete fixture (Flink or Iceberg Java in a test container).
+4. **AvroConvert 4.0.1 first.** Released before the Iceberg package is published, for the licence hand-over in I1.
+
 ## Open questions
 
-1. **Time travel on the interface or as an Iceberg extension?** Recommended: `AsOf` on `IDatasetQuery<T>` (I8), because Delta will need the same and code should not depend on the provider. Alternative: `lake.Orders.AsIceberg().AsOf(...)`, which keeps the interface small but ties callers to Iceberg.
-2. **The go/no-go gate.** ROADMAP and the product plan put 0.3 after five conversations with fewer than two "we would pay" stopping Iceberg. None has happened yet. Starting 0.3 now is a decision to record (who, when) in the product plan.
-3. **Equality deletes in 0.3 or 0.3.x?** Spark, Trino and PyIceberg write position deletes; equality deletes come mostly from Flink CDC. Recommended: ship 0.3 with steps 1-6 and 8-11 and the refusal, then 0.3.x with step 7 once a Flink fixture exists.
-4. **AvroConvert 4.0.1.** The licence hand-over (I1) needs it on NuGet before the Iceberg package is published.
+None before the review.
