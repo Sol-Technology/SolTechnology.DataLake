@@ -56,6 +56,8 @@ Writes, and Arrow results in your classes.
 
 ## 0.3 Iceberg read
 
+Design and steps: [design/iceberg-read.md](design/iceberg-read.md) (draft, to be reviewed).
+
 - [ ] REST catalog client: namespaces, tables, `loadTable`, OAuth2, SigV4 (AWS Glue, S3 Tables), vended credentials
 - [ ] Table straight from a `metadata.json` path
 - [ ] Metadata model for spec v1 and v2
