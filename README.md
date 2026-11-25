@@ -1,23 +1,57 @@
-# SolTechnology.DataLake
-
-**Read and write Apache Iceberg tables and Parquet datasets from .NET. No Spark, no JVM.**
-
 <!-- github-only -->
-<p>
- <a href="https://github.com/Sol-Technology/SolTechnology.DataLake/actions/workflows/build.yml"><img src="https://img.shields.io/github/actions/workflow/status/Sol-Technology/SolTechnology.DataLake/build.yml?label=Build&logo=github"></a>
- <a href="./LICENSE.md"><img src="https://img.shields.io/badge/licence-MIT-2F7D7A.svg"></a>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./docs/logo-dark.png">
+    <img alt="SolTechnology / DataLake" src="./docs/logo.png" width="300">
+  </picture>
+</p>
+
+<p align="center">
+  Iceberg tables and Parquet datasets in .NET. No Spark, no JVM.
+</p>
+
+<p align="center">
+ <a href="https://github.com/Sol-Technology/SolTechnology.DataLake/actions/workflows/build.yml"><img src="https://img.shields.io/github/actions/workflow/status/Sol-Technology/SolTechnology.DataLake/build.yml?label=Build&logo=github&labelColor=0B1F33"></a>
+ <a href="./LICENSE.md"><img src="https://img.shields.io/badge/licence-MIT-2F7D7A.svg?labelColor=0B1F33"></a>
+ <a href="./docs/ROADMAP.md"><img src="https://img.shields.io/badge/status-0.2%20preview-F59E0B.svg?labelColor=0B1F33"></a>
 </p>
 <!-- /github-only -->
 
 > **Status: 0.2 preview, not on NuGet yet.** It reads and writes Parquet datasets on local disk, S3 and Azure, and maps Apache Arrow (ADBC results, IPC files) to your classes. Iceberg tables come in 0.3. The API can change until 1.0.
 
-## Why
+## Docs
 
-Data teams keep their tables in a lake: Parquet files on S3 or ADLS, more and more often as Apache Iceberg tables, read by Snowflake, Databricks, Trino, BigQuery or Fabric. Java, Python, Rust, Go and C++ have an official Iceberg library. .NET has none.
+[DataLake documentation](./docs/Documentation.md)
 
-So a .NET service that needs yesterday's orders, or has to append events to a table, today starts Spark, calls PyIceberg in a subprocess, or reads Parquet files one by one and guesses which of them are current.
+[Providers: Files](./docs/providers/Files.md), [InMemory](./docs/providers/InMemory.md)
 
-DataLake does it in C#, on your own classes.
+[Roadmap](./docs/ROADMAP.md) and [release notes](./docs/release-notes)
+
+
+## Why DataLake
+
+**Data teams keep their tables in a lake: Parquet files on S3 or ADLS, more and more often as Apache Iceberg tables.** Snowflake, Databricks, Trino, BigQuery and Fabric read them. Java, Python, Rust, Go and C++ have an official Iceberg library. .NET has none.
+
+So a .NET service that needs yesterday's orders, or has to append events to a table, today starts Spark, calls PyIceberg in a subprocess, or reads Parquet files one by one and guesses which of them are current. DataLake does it in C#, on your own classes.
+
+|                                                                     |    DataLake    |      Parquet.Net, file by file      |
+|---------------------------------------------------------------------|:--------------:|:-----------------------------------:|
+| A folder of files is one table, `date=…/country=…` fill properties  |       ✔️       |         ❌ one file at a time         |
+| LINQ filter skips files and row groups before reading them          |       ✔️       |                  ❌                  |
+| Rows into your classes, with nested structs, lists and maps         |       ✔️       |                  ✔️                  |
+| Partitioned writes: append, overwrite, replace partitions, delete   |       ✔️       |           ❌ single files            |
+| S3 and Azure with ranged reads                                      |       ✔️       |        ❌ bring your own stream       |
+| Apache Arrow and ADBC results into your classes                     |       ✔️       |                  ❌                  |
+| Apache Iceberg tables                                               |      0.3       |                  ❌                  |
+| One day of 30, one country (900 000 rows, local disk)               |   **13 ms**    |        421 ms, 33× slower           |
+| All 900 000 rows                                                    |     450 ms     |               474 ms                |
+
+DataLake reads the files with Parquet.Net, so the last two rows are about what it skips, not a faster decoder. Benchmark: [results and how to run it](benchmarks/SolTechnology.DataLake.Benchmarks/README.md), with pyarrow on the same files.
+
+What it means for your services:
+* **Less to download** – a filter on a partition or on min/max statistics skips files and row groups; on S3 or ADLS they are never downloaded
+* **No guessing** – a UTC timestamp reads into `DateTimeZone` or `DateTimeOffset`, one without a zone into `UnzonedDateTime`. A missing column, a null in a non-nullable property or a lossy conversion is an error that says what to change
+* **The technology in one place** – a `LakeContext` like EF Core's `DbContext`; the provider (folders of files now, Iceberg next) is chosen at registration, and `UseInMemory()` replaces it in tests
 
 ## Quick start
 
@@ -57,19 +91,48 @@ await foreach (var order in lake.Orders.Where(o => o.Date == yesterday && o.Coun
 await lake.Orders.ReplacePartitionsAsync(todaysOrders);
 ```
 
-What it does:
-* **Datasets** - a folder of files is one table: Parquet built in, Avro and Arrow IPC with their packages (`f => f.Avro().Arrow()`). Hive partitions (`date=…/country=…`) fill properties too
-* **Skips what it can** - a LINQ filter skips whole files by partition and whole row groups by min/max statistics; the rest is filtered row by row. One day of 30 reads [33x faster](benchmarks/SolTechnology.DataLake.Benchmarks/README.md) than Parquet.Net file by file
-* **Your classes** - columns map to properties by name (`[DataMember]`, snake_case policy, any case). Structs, lists and maps map to nested classes, lists and dictionaries
-* **No guessing** - a UTC timestamp reads into `DateTimeZone` or `DateTimeOffset`, one without a zone into `UnzonedDateTime`. A missing column, a null in a non-nullable property or a lossy conversion is an error that says what to change
-* **S3 and Azure** - ranged reads, so a skipped file costs nothing. S3-compatible storage (MinIO, R2) and ADLS Gen2 / OneLake through the Blob API
-* **One API, the technology in one place** - a `LakeContext` like EF Core's `DbContext`, with `IDataset<T>` to read and write; the provider (folders of files now, Iceberg next) is chosen at registration. Interfaces to mock, `UseInMemory()` for tests
-* **Writes** - append, overwrite, overwrite with a filter, replace partitions, delete: the words Spark, delta-rs and PyIceberg use. Parquet files with types and statistics that Spark, Trino, DuckDB and pyarrow read right (checked in CI)
-* **Apache Arrow** - record batches, IPC files and ADBC query results (Databricks SQL, Snowflake, Flight SQL) into your classes and back
-* **`datalake` CLI** - `ls`, `schema`, `head`, `cat`, `stats` for any location
-* **OpenTelemetry** - every read is a `datalake.scan` activity with files, row groups and bytes skipped and read
+## Features
 
-Full documentation: [docs/Documentation.md](./docs/Documentation.md), and per provider: [Files](./docs/providers/Files.md), [InMemory](./docs/providers/InMemory.md).
+#### Read with a filter, and see what it skipped
+```csharp
+var metrics = new ScanMetrics();
+var big = await lake.Orders.Where(o => o.Amount > 100m).ReadAsync(metrics).ToListAsync();
+```
+
+#### Append, overwrite, replace partitions, delete: the words Spark and PyIceberg use
+```csharp
+await lake.Orders.OverwriteAsync(fixedOrders, where: o => o.Date == day);
+```
+
+#### Any folder or file, without a context
+```csharp
+var orders = Dataset.Open<Order>("s3://shop/export/", new DataLakeOptions { Storage = new S3Storage(s3) });
+```
+
+#### Apache Arrow and ADBC (Databricks SQL, Snowflake, Flight SQL)
+```csharp
+await foreach (var trip in ArrowConvert.DeserializeAsync<Trip>(result.Stream!)) { }
+```
+
+#### Tests without disk
+```csharp
+var lake = new ShopLake(LakeContextOptions.For<ShopLake>(o => o.UseInMemory()));
+```
+
+#### Command line
+```bash
+datalake stats s3://shop/orders/        # also ls, schema, head, cat
+```
+
+#### OpenTelemetry: files, row groups and bytes skipped and read
+```csharp
+.WithTracing(t => t.AddSource(DataLakeTelemetry.Name))
+```
+
+Parquet built in, Avro and Arrow IPC files with their packages (`f => f.Avro().Arrow()`). S3-compatible storage (MinIO, R2) and ADLS Gen2 / OneLake through the Blob API. Parquet files it writes are read right by Spark, Trino, DuckDB and pyarrow (checked in CI).
+
+All features: [documentation](./docs/Documentation.md)
+
 
 ## Plan
 
@@ -106,4 +169,17 @@ Is your .NET team on Databricks, Snowflake, Fabric, Trino or plain S3, and you w
 
 MIT, see [LICENSE.md](./LICENSE.md). SolTechnology.DataLake.Avro is MIT too, but it uses AvroConvert, which has [its own licence](https://github.com/AdrianStrugala/AvroConvert/blob/master/LICENSE.md): free for noncommercial use and small companies, a commercial licence for others. A future SolTechnology.DataLake.Iceberg package will be commercial and will say so in its own licence.
 
-Apache Iceberg, Apache Parquet, Apache Arrow and Apache Avro are trademarks of The Apache Software Foundation. DataLake is an independent implementation and is not endorsed by the ASF.
+
+## Contribution
+
+If you have any idea, found a bug, a missing format or a better way for integration, leave an issue or a pull request.
+
+
+## Related Work
+
+- [![AvroConvert](https://img.shields.io/nuget/v/AvroConvert?label=AvroConvert&logo=nuget&labelColor=0B1F33)](https://github.com/AdrianStrugala/AvroConvert) – Apache Avro serializer for .NET, used here for `.avro` files
+- [![DateTimeZone](https://img.shields.io/nuget/v/SolTechnology.DateTimeZone?label=SolTechnology.DateTimeZone&logo=nuget&labelColor=0B1F33)](https://github.com/Sol-Technology/SolTechnology.DateTimeZone) – a point in time with its time zone, the type timestamps read into
+
+---
+
+Apache Iceberg, Apache Parquet, Apache Arrow and Apache Avro are trademarks of [The Apache Software Foundation](https://www.apache.org/). DataLake is an independent implementation and is not affiliated with, endorsed by or sponsored by the ASF.
